@@ -1,42 +1,40 @@
 #include <string.h>
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_event.h"
 #include "esp_log.h"
 #include "esp_netif.h"
-#include "nvs_flash.h"
 #include "esp_wifi.h"
 #include "esp_http_server.h"
+#include "nvs_flash.h"
 
-#include "structs.h"
-#include "functions.h"
+#include "mesh_config.h"
+#include "web_server.h"
 
-const char *header = "<html><h1>ESP32 LoRa mesh Network Interface</h1><h3>By: Ben Hastings</h3><body>";
-const char *footer = "</body></html>";
-const char *TAG = "ap_http_hello";
+static const char *header = "<html><h1>ESP32 LoRa mesh Network Interface</h1><h3>By: Ben Hastings</h3><body>";
+static const char *footer = "</body></html>";
+static const char *TAG = "ap_http_hello";
 
-
-/* ---- HTTP server: single GET "/" that returns "Hello, world" ---- */
 static esp_err_t root_get_handler(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "text/html");
     httpd_resp_sendstr_chunk(req, header);
     httpd_resp_sendstr_chunk(req, "<div><b>Hello world</b></div>");
     httpd_resp_sendstr_chunk(req, footer);
- 
     return ESP_OK;
 }
 
 static httpd_handle_t start_http_server(void)
 {
-    httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();   // port 80
+    httpd_config_t cfg = HTTPD_DEFAULT_CONFIG();
     httpd_handle_t server = NULL;
 
     if (httpd_start(&server, &cfg) == ESP_OK) {
         static const httpd_uri_t root = {
-            .uri      = "/",
-            .method   = HTTP_GET,
-            .handler  = root_get_handler,
+            .uri = "/",
+            .method = HTTP_GET,
+            .handler = root_get_handler,
             .user_ctx = NULL,
         };
         httpd_register_uri_handler(server, &root);
@@ -60,7 +58,6 @@ void wifi_start_softap(void)
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-    // Creates default AP netif and starts DHCP server automatically
     esp_netif_create_default_wifi_ap();
 
     wifi_init_config_t wicfg = WIFI_INIT_CONFIG_DEFAULT();
@@ -85,8 +82,12 @@ void wifi_start_softap(void)
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_AP, &apcfg));
     ESP_ERROR_CHECK(esp_wifi_start());
 
-    // Optional: set country to US (channels 1–11)
-    wifi_country_t country = { .cc = "US", .schan = 1, .nchan = 11, .policy = WIFI_COUNTRY_POLICY_AUTO };
+    wifi_country_t country = {
+        .cc = "US",
+        .schan = 1,
+        .nchan = 11,
+        .policy = WIFI_COUNTRY_POLICY_AUTO,
+    };
     esp_wifi_set_country(&country);
 
     ESP_LOGI(TAG, "SoftAP started | SSID:%s pass:%s channel:%d",
@@ -95,16 +96,3 @@ void wifi_start_softap(void)
 
     start_http_server();
 }
-
-
-
-// void app_main(void)
-// {
-// 	gpio_reset_pin(LED);
-// 	gpio_set_direction(LED,GPIO_MODE_OUTPUT);
-// 	ESP_ERROR_CHECK(nvs_flash_init());
-// 	wifi_start_softap();
-// 	start_http_server();
-
-// }
-
