@@ -1,10 +1,10 @@
 idf_component_register(
-    SRCS 
-        "web_server.c"
-        "data_table.c"
-        "lora-uart-test.c"
+    SRCS
+        "src/web_server.c"
+        "src/data_table.c"
+        "src/lora_uart.c"
         "main.c"
 
-    INCLUDE_DIRS 
-        "."
+    INCLUDE_DIRS
+        "include"
 )
