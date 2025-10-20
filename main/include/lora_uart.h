@@ -1,8 +1,17 @@
 #ifndef LORA_UART_H
 #define LORA_UART_H
 
+typedef enum {
+	SEND,
+	ADDRESS,
+	RESET
+} Command;
+
+typedef char * LoraInstruction;
+
 void uart_init(void);
-void set_address(int address);
-char *uart_send_and_block(char *message);
+int uart_send_and_block(LoraInstruction);
+LoraInstruction construct_command(Command, const char *[], int);
+int send_message(DataEntry *, int);
 
 #endif // LORA_UART_H

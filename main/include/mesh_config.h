@@ -2,7 +2,7 @@
 #define MESH_CONFIG_H
 
 // Wi-Fi SoftAP configuration
-#define AP_SSID     "Join Me"
+#define AP_SSID     "LoRa MeshNet"
 #define AP_PASS     ""   // >= 8 chars for WPA2; empty for open
 #define AP_CHANNEL  6
 #define AP_MAX_CONN 4

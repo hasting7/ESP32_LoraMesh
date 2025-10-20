@@ -1,0 +1,93 @@
+html, body {
+	background: #fefefe;
+}
+
+#header {
+	text-align: center;
+}
+#header * {
+  margin-top: 0px;
+  margin-bottom: 0px;
+}
+
+form {
+  max-width: 900px;
+  margin: 16px auto 24px;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.06);
+  display: grid;
+  gap: 12px;
+}
+
+form label {
+  font-weight: 600;
+  color: #222;
+}
+
+form textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 12px 14px;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  font: inherit;
+  resize: vertical;
+  background: #fff;
+  color: #222;
+  transition: border-color .15s, box-shadow .15s, background .15s;
+}
+form textarea::placeholder { color: #888; }
+form textarea:focus {
+  outline: none;
+  border-color: #333;
+  box-shadow: 0 0 0 3px rgba(0,0,0,.08);
+}
+
+/* Button */
+form input[type="submit"] {
+  justify-self: start;
+  padding: 10px 16px;
+  border: 1px solid #222;
+  border-radius: 10px;
+  background: #111;
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity .15s ease, transform .05s ease, box-shadow .15s ease;
+  box-shadow: 0 4px 12px rgba(0,0,0,.2);
+}
+form input[type="submit"]:hover { opacity: .92; }
+form input[type="submit"]:active { transform: translateY(1px); }
+
+.msg-table {
+  max-width: 900px;
+  margin: 0 auto 48px;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.06);
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 14px;
+}
+.msg-table thead th {
+  background: #f0f0f0;
+}
+.msg-table th,
+.msg-table td {
+  border: 1px solid #ddd;
+  padding: 8px 10px;
+  text-align: left;
+  color: #222;
+}
+
+/* Responsive tweaks */
+@media (max-width: 640px) {
+  #header { padding: 0 12px; }
+  form { padding: 12px; }
+  form textarea { min-height: 100px; }
+  .msg-table { font-size: 13px; }
+}
