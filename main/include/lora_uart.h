@@ -4,7 +4,10 @@
 typedef enum {
 	SEND,
 	ADDRESS,
-	RESET
+	RESET,
+	PARAMETER,
+	NETWORKID,
+	BAND
 } Command;
 
 typedef char * LoraInstruction;

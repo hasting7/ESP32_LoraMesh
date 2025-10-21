@@ -7,8 +7,10 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 
+#include "node_globals.h"
 #include "mesh_config.h"
 #include "data_table.h"
+#include "node_table.h"
 #include "lora_uart.h"
 
 
@@ -45,11 +47,14 @@ static void uart_event_task(void *arg)
                         //                    from,len,data,    rssi, snr
                         int from, origin, dest, step, len, rssi, snr;
                         char data[250];
-                        sscanf((char *)tmp,"+RCV=%d,%d,%249[^,]%d,%d,%d,%d,%d",&from, &len, data, &origin, &dest, &step, &rssi, &snr);
+                        sscanf((char *)tmp,"+RCV=%d,%d,%249[^,],%d,%d,%d,%d,%d",&from, &len, data, &origin, &dest, &step, &rssi, &snr);
 
-                        // data should be like ""
-
-
+                        // REPLACE THIS WITH PROPER PROPAGATION OF NODES
+                        NodeEntry *node = get_node_ptr(origin);
+                        if (!node) {
+                            node = create_node_object(origin);
+                        }
+                        update_metrics(node, rssi, snr);
 
                         // compile the table obj but for now dont worry
                         create_data_object(data, from, dest, origin, step + 1, rssi, snr);
@@ -159,6 +164,15 @@ LoraInstruction construct_command(Command cmd, const char *args[], int n) {
     } else if (cmd == RESET) {
         name = "RESET";
         expect_args = 0;
+    } else if (cmd == PARAMETER) {
+        name = "PARAMETER";
+        expect_args = 4;
+    } else if (cmd == BAND) {
+        name = "BAND";
+        expect_args = 2;
+    } else if (cmd == NETWORKID) {
+        name = "NETWORKID";
+        expect_args = 1;
     }
     if (n != expect_args) {
         printf("%s cmd should have %d args not %d\n",name, expect_args, n);

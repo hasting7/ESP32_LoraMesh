@@ -17,10 +17,11 @@ typedef struct data_entry_struct {
     int origin_node;            // node where message originated
     int steps;                  // nodes visited
     time_t timestamp;           // timestamp of arrival
+    uint16_t id;
 
-    int length;
-    int rssi;
-    int snr;
+    int length;                 // length of message content   
+    int rssi;                   // Received Signal Strength Indicator
+    int snr;                    // signal to noise ratio
     struct data_entry_struct *next;
     MessageRouteStage stage;
 } DataEntry;
@@ -29,7 +30,8 @@ DataEntry *create_data_object(char *content, int src, int dst, int origin, int s
 void free_data_object(DataEntry **ptr);
 void fmt_time_iso_utc(time_t t, char out[32]);
 void table_insert(DataEntry *data);
-size_t render_messages_table_html(char *out, size_t out_cap);
 void msg_table_init(void);
+DataEntry* render_messages_table_chunk(char *, size_t , const DataEntry *, size_t *);
+
 
 #endif // DATA_TABLE_H

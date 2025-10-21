@@ -12,10 +12,10 @@
 
 
 static DataEntry *g_table = NULL;
-static SemaphoreHandle_t g_mutex; 
+static SemaphoreHandle_t g_dtb_mutex; 
 
 void msg_table_init(void) {
-    g_mutex = xSemaphoreCreateMutex();
+    g_dtb_mutex = xSemaphoreCreateMutex();
 }
 
 DataEntry *create_data_object(char *content, int src, int dst, int origin, int steps, int rssi, int snr)
@@ -88,7 +88,7 @@ void table_insert(DataEntry *data)
 {
     if (!data) return;
 
-    xSemaphoreTake(g_mutex, portMAX_DELAY);
+    xSemaphoreTake(g_dtb_mutex, portMAX_DELAY);
 
     DataEntry **pp = &g_table;
 
@@ -99,21 +99,22 @@ void table_insert(DataEntry *data)
     data->next = *pp;  // insert before *pp
     *pp = data;        // works even when g_table == NULL (then *pp is g_table)
 
-    xSemaphoreGive(g_mutex);
+    xSemaphoreGive(g_dtb_mutex);
 
     printf("data added %s\n", data->content ? data->content : "(null)");
 }
 
 
-// uses your DataEntry and fmt_time_iso_utc(...)
-size_t render_messages_table_html(char *out, size_t out_cap)
+DataEntry* render_messages_table_chunk(char *out, size_t out_cap,
+                                       const DataEntry *ptr, size_t *out_len)
 {
-    if (!out || out_cap == 0) return 0;
+    if (out_len) *out_len = 0;
+    if (!out || out_cap == 0) return (DataEntry*)ptr;
 
     char *p = out;
     size_t left = out_cap;
 
-    /* inline helpers as macros (kept inside this function) */
+    // ---- helpers ----
     #define APPENDF(...) do {                                           \
         if (left > 1) {                                                 \
             int _n = snprintf(p, left, __VA_ARGS__);                    \
@@ -133,60 +134,66 @@ size_t render_messages_table_html(char *out, size_t out_cap)
                 case '>': APPENDF("&gt;");   break;                     \
                 case '\"':APPENDF("&quot;"); break;                     \
                 case '\'':APPENDF("&#39;");  break;                     \
-                default:                                                 \
-                    if (left > 1) { *p++ = (char)*_s; --left; }         \
+                default: if (left > 1) { *p++ = (char)*_s; --left; }    \
             }                                                           \
         }                                                               \
     } while (0)
+    // -----------------
 
-    /* table open + header */
-    APPENDF(
-        "<table class=\"msg-table\">"
-        "<thead><tr>"
-        "<th>Route Stage</th>"
-        "<th>Origin</th>"
-        "<th>Src</th>"
-        "<th>Dst</th>"
-        "<th>Steps</th>"
-        "<th>Content</th>"
-        "</tr></thead><tbody>"
-    );
+    const DataEntry *next_ptr = NULL;
 
-    if (!g_table) {
+    if (ptr == NULL) {
+        // Header
         APPENDF(
-            "<tr><td colspan=\"6\">"
-            "No messages yet."
-            "</td></tr>"
+            "<table class=\"msg-table\">"
+            "<thead><tr>"
+            "<th>Route Stage</th>"
+            "<th>Origin</th>"
+            "<th>Src</th>"
+            "<th>RSSI (dBm)</th>"
+            "<th>SNR (dB)</th>"
+            "<th>Content</th>"
+            "</tr></thead><tbody>"
         );
-    } else {
-        const DataEntry *walk = g_table;
-        while (walk) {
-            char tbuf[32];
-            fmt_time_iso_utc(walk->timestamp, tbuf);
 
-            APPENDF("<tr>");
-            APPENDF("<td>%d</td>", walk->stage);
-            APPENDF("<td>%d</td>", walk->origin_node);
-            APPENDF("<td>%d</td>", walk->src_node);
-            APPENDF("<td>%d</td>", walk->dst_node);
-            APPENDF("<td>%d</td>", walk->steps);
-
-            APPENDF("<td>");
-            APPEND_ESC_HTML(walk->content);
-            APPENDF("</td>");
-
-            APPENDF("</tr>");
-            walk = walk->next;
+        if (!g_table) {
+            // Empty table: body + footer
+            APPENDF("<tr><td colspan=\"6\">No messages yet.</td></tr>");
+            APPENDF("</tbody></table>");
+            next_ptr = NULL;
+        } else {
+            // More rows to come
+            next_ptr = g_table;
         }
+    } else {
+        // One row
+        APPENDF("<tr class=\"type-%d\">", (int)ptr->stage);
+        APPENDF("<td>%d</td>", ptr->stage);
+        APPENDF("<td>%d</td>", ptr->origin_node);
+        APPENDF("<td>%d</td>", ptr->src_node);
+        APPENDF("<td>%d</td>", ptr->rssi);
+        APPENDF("<td>%d</td>", ptr->snr);
+
+        APPENDF("<td>");
+        APPEND_ESC_HTML(ptr->content);  // if content may be binary, switch to length-based escaping
+        APPENDF("</td>");
+
+        APPENDF("</tr>");
+
+        // Footer if this was the last row
+        if (ptr->next == NULL) {
+            APPENDF("</tbody></table>");
+        }
+
+        next_ptr = ptr->next;
     }
 
-    APPENDF("</tbody></table>");
-
-    /* NUL-terminate even if truncated */
+    // NUL-terminate even if truncated
     if (left > 0) *p = '\0'; else out[out_cap - 1] = '\0';
+    if (out_len) *out_len = (size_t)(p - out);
 
     #undef APPENDF
     #undef APPEND_ESC_HTML
 
-    return (size_t)(p - out);
+    return (DataEntry*)next_ptr;
 }

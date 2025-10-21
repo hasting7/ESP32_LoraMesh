@@ -91,3 +91,9 @@ form input[type="submit"]:active { transform: translateY(1px); }
   form textarea { min-height: 100px; }
   .msg-table { font-size: 13px; }
 }
+
+.type-0  { color:#0B63CE; background:#E7F1FF; border:1px solid #CFE4FF; }
+.type-1 { color:#92400E; background:#FFFBEB; border:1px solid #FDE68A; }
+.type-2  { color:#1A7F37; background:#E8F5EC; border:1px solid #CDEFD7; }
+
+.this-node { background: #eafaf1; }

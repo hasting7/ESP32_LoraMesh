@@ -12,6 +12,7 @@
 
 #include "node_globals.h"
 #include "data_table.h"
+#include "node_table.h"
 #include "mesh_config.h"
 #include "web_server.h"
 #include "lora_uart.h"
@@ -41,12 +42,19 @@ static esp_err_t root_get_handler(httpd_req_t *req)
     httpd_resp_sendstr_chunk(req, form);
 
 
+    DataEntry *ptr = NULL;
     char page[1024];
-    size_t n = render_messages_table_html(page, sizeof page);
-    printf("data table size: %d\n", n);
+    size_t n;
+    do {
+        ptr = render_messages_table_chunk(page, sizeof page, ptr, &n);
+        httpd_resp_sendstr_chunk(req, page);
+    } while (ptr);
+
+
+    n = render_node_table_html(page, sizeof page);
+    printf("node table size: %d\n", n);
     page[1023] = '\0';
     httpd_resp_sendstr_chunk(req, page);
-
 
     httpd_resp_sendstr_chunk(req, footer);
     return httpd_resp_sendstr_chunk(req, NULL);;
