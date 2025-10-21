@@ -10,25 +10,12 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
-#include "esp_random.h"
-
 
 static SemaphoreHandle_t g_dtb_mutex; 
 
 void msg_table_init(void) {
     g_dtb_mutex = xSemaphoreCreateMutex();
 }
-
-static uint16_t rand_id(void) {
-    const uint32_t m = 9000; // (10000 - 1000) no leading 0s
-    const uint32_t limit = UINT32_MAX - (UINT32_MAX % m);
-    uint32_t r;
-    do {
-        r = esp_random();
-    } while (r >= limit);
-    return (uint16_t)((r % m) + 1000); // 1000..9999
-}
-
 
 DataEntry *create_data_object(char *content, int src, int dst, int origin, int steps, int rssi, int snr)
 {
@@ -85,18 +72,6 @@ void free_data_object(DataEntry **ptr)
     *ptr = NULL;
 }
 
-static inline int is_after(time_t a, time_t b)
-{
-    return difftime(a, b) > 0.0;
-}
-
-void fmt_time_iso_utc(time_t t, char out[32])
-{
-    struct tm tm;
-    gmtime_r(&t, &tm);
-    strftime(out, 32, "%Y-%m-%dT%H:%M:%SZ", &tm);
-}
-
 void table_insert(DataEntry *data)
 {
     if (!data) return;
@@ -105,12 +80,12 @@ void table_insert(DataEntry *data)
 
     DataEntry **pp = &g_msg_table;
 
-    while (*pp && !is_after(data->timestamp, (*pp)->timestamp)) {
+    while (*pp && (difftime(data->timestamp, (*pp)->timestamp) <= 0.0)) {
         pp = &(*pp)->next;
     }
 
-    data->next = *pp;  // insert before *pp
-    *pp = data;        // works even when g_table == NULL (then *pp is g_table)
+    data->next = *pp;
+    *pp = data;
 
     xSemaphoreGive(g_dtb_mutex);
 
@@ -120,7 +95,10 @@ void table_insert(DataEntry *data)
 int format_data_as_json(DataEntry *data, char *out, int buff_size) {
     // content, source, destination, origin, steps, timestamp, id, length, rssi, snr, stage
     char time_buff[32];
-    fmt_time_iso_utc(data->timestamp, time_buff);
+    struct tm tm;
+    gmtime_r(&t, &tm);
+    strftime(time_buff, 32, "%Y-%m-%dT%H:%M:%SZ", &tm);
+
     int n = sprintf(
         out,
         "{\"content\" : \"%s\", \"source\" : %d, \"destination\" : %d, \"origin\" : %d, \"steps\" : %d, \"timestamp\" : \"%s\", \"id\" : %d, \"length\" : %d, \"rssi\" : %d, \"snr\" : %d, \"stage\" : %d}",

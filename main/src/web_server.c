@@ -8,7 +8,6 @@
 #include "esp_wifi.h"
 #include "esp_http_server.h"
 #include "nvs_flash.h"
-#include "esp_random.h"
 
 #include "data_table.h"
 #include "node_globals.h"
@@ -19,8 +18,6 @@
 
 
 static const char *TAG = "ap_http_hello";
-
-
 extern const uint8_t index_html_start[] asm("_binary_index_html_start");
 extern const uint8_t index_html_end[]   asm("_binary_index_html_end");
 extern const uint8_t style_css_start[] asm("_binary_style_css_start");
@@ -38,13 +35,16 @@ static esp_err_t css_get_handler(httpd_req_t *req)
 static esp_err_t root_get_handler(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "text/html");
-    // no-store so the page always loads fresh code you flash (optional)
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
     size_t len = (size_t)(index_html_end - index_html_start);
     return httpd_resp_send(req, (const char*)index_html_start, len);
 }
 
 static esp_err_t api_get_msgs(httpd_req_t *req) {
+    // since_id -> only grab messages before id
+    //
+    // address -> only returns messages between (this and address) ignore relay
+    // modes (conversational, all, relay, broadcasts)
     printf("GET /api/messages\n");
     uint64_t since_id = 0;
     bool have_since_id = false;
@@ -113,9 +113,8 @@ static esp_err_t api_get_nodes(httpd_req_t *req) {
 
 static esp_err_t send_post_handler(httpd_req_t *req)
 {
-    // 1) Read the entire body
     size_t total = req->content_len;
-    if (total > 4096) { // cap to something sane for your app
+    if (total > 4096) {
         ESP_LOGW(TAG, "POST too large: %u", (unsigned)total);
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "Body too large");
         return ESP_FAIL;
@@ -207,20 +206,7 @@ static httpd_handle_t start_http_server(void)
     return server;
 }
 
-
-static uint16_t rand_address(void) {
-    const uint32_t m = 9000; // (10000 - 1000) no leading 0s
-    const uint32_t limit = UINT32_MAX - (UINT32_MAX % m);
-    uint32_t r;
-    do {
-        r = esp_random();
-    } while (r >= limit);
-    return (uint16_t)((r % m) + 1000); // 1000..9999
-}
-
-
-void wifi_start_softap(Address *address)
-{
+void wifi_start_softap(Address *address) {
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
@@ -239,7 +225,7 @@ void wifi_start_softap(Address *address)
     // TODO replace later with using lora to identifying overlapping nodes and add simple id
 
     char ssid_buf[33]; // +1 for safety during snprintf                  // HW RNG
-    uint16_t suffix = rand_address();
+    uint16_t suffix = rand_id();
     // Reserve space for "-%03u" (5 chars) if possible; otherwise truncate base.
     const char *base = AP_SSID;
     size_t base_len = strlen(base);

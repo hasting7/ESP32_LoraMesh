@@ -100,28 +100,6 @@ static void uart_event_task(void *arg)
     }
 }
 
-
-void uart_init(void)
-{
-    uart_config_t uart_config = {
-        .baud_rate = BAUD,
-        .data_bits = UART_DATA_8_BITS,
-        .parity = UART_PARITY_DISABLE,
-        .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
-    };
-
-    ESP_ERROR_CHECK(uart_driver_install(UART_PORT, UART_READ_BUFF, UART_WRITE_BUFF, 20, &uart_queue, 0));
-    ESP_ERROR_CHECK(uart_param_config(UART_PORT, &uart_config));
-    ESP_ERROR_CHECK(uart_set_pin(UART_PORT, TX_PIN, RX_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
-
-    // pattern detection
-    ESP_ERROR_CHECK(uart_enable_pattern_det_baud_intr(UART_PORT, '\n', 1, 9, 0, 0));
-    ESP_ERROR_CHECK(uart_pattern_queue_reset(UART_PORT, 10));
-    xTaskCreate(uart_event_task, "uart_event_task", 4096, NULL, 10, NULL);
-}
-
-
 int send_message(DataEntry *data, int to_address) {
     // send args "to_address, len, message, origin, dest, steps"
     char cmd[512];
@@ -206,7 +184,6 @@ LoraInstruction construct_command(Command cmd, const char *args[], int n) {
     return ret;
 }
 
-
 int uart_send_and_block(LoraInstruction instruction) {
     printf("instruction: %s", instruction);
     uart_write_bytes(UART_PORT, instruction, strlen(instruction));
@@ -232,4 +209,23 @@ int uart_send_and_block(LoraInstruction instruction) {
     response[length] = '\0';
     printf("Collected Response: %s", response);
     return strcmp("+OK", response);
+}
+
+void uart_init(void) {
+    uart_config_t uart_config = {
+        .baud_rate = BAUD,
+        .data_bits = UART_DATA_8_BITS,
+        .parity = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+    };
+
+    ESP_ERROR_CHECK(uart_driver_install(UART_PORT, UART_READ_BUFF, UART_WRITE_BUFF, 20, &uart_queue, 0));
+    ESP_ERROR_CHECK(uart_param_config(UART_PORT, &uart_config));
+    ESP_ERROR_CHECK(uart_set_pin(UART_PORT, TX_PIN, RX_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
+
+    // pattern detection
+    ESP_ERROR_CHECK(uart_enable_pattern_det_baud_intr(UART_PORT, '\n', 1, 9, 0, 0));
+    ESP_ERROR_CHECK(uart_pattern_queue_reset(UART_PORT, 10));
+    xTaskCreate(uart_event_task, "uart_event_task", 4096, NULL, 10, NULL);
 }

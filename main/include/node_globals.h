@@ -9,3 +9,4 @@ typedef struct {
 
 extern Address g_address;
 extern DataEntry *g_msg_table;
+uint16_t rand_id(void);

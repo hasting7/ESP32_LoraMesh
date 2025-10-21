@@ -28,7 +28,6 @@ typedef struct data_entry_struct {
 
 DataEntry *create_data_object(char *content, int src, int dst, int origin, int steps, int rssi, int snr);
 void free_data_object(DataEntry **ptr);
-void fmt_time_iso_utc(time_t t, char out[32]);
 void table_insert(DataEntry *data);
 void msg_table_init(void);
 int format_data_as_json(DataEntry *, char *, int);
