@@ -74,14 +74,10 @@ void update_metrics(NodeEntry *node, int rssi, int snr) {
 
 int format_node_as_json(NodeEntry *data, char *out, int buff_size) {
     // name, address, avg_rssi, avg_snr, messages
-    char time_buff[32];
-    struct tm tm;
-    gmtime_r(&data->last_connection, &tm);
-    strftime(time_buff, 32, "%Y-%m-%dT%H:%M:%SZ", &tm);
     int n = sprintf(
         out,
-        "{\"name\" : \"%s\", \"address\" : \"%s\", \"avg_rssi\" : %.2f, \"avg_snr\" : %.2f, \"messages\" : %d, \"current_node\" : %d, \"last_connection\" : \"%s\"}",
-        (data->name) ? data->name : "(null)", data->address.s_addr, data->avg_rssi, data->avg_snr, data->messages, data->address.i_addr == g_address.i_addr, time_buff
+        "{\"name\" : \"%s\", \"address\" : \"%s\", \"avg_rssi\" : %.2f, \"avg_snr\" : %.2f, \"messages\" : %d, \"current_node\" : %d, \"last_connection\" : %.2f}",
+        (data->name) ? data->name : "(null)", data->address.s_addr, data->avg_rssi, data->avg_snr, data->messages, data->address.i_addr == g_address.i_addr, difftime(time(NULL), data->last_connection)
     );
     out[buff_size - 1] = '\0';
     return n;

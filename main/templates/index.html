@@ -65,7 +65,7 @@
     // Replace this at render time with your local node address string, e.g., "5310"
     const CURRENT_ADDR = window.CURRENT_ADDR || "0000";
     const POLL_MS_MESSAGES = 1000;
-    const POLL_MS_NODES = 10000;
+    const POLL_MS_NODES = 5000;
 
     // Tracks newest message timestamp we've rendered
 
@@ -101,6 +101,7 @@
 
     // Replace entire node table; mark this node with .this-node
     function renderNodes(list) {
+      list.sort((a, b) => a.last_connection - b.last_connection);
       const tbody  = document.getElementById('node-tbody');
       const empty  = document.getElementById('node-empty');
       const select = document.getElementById('target');
@@ -130,7 +131,7 @@
             `<td>${esc(n.messages ?? 0)}</td>` +
             `<td>${avgRssi}</td>` +
             `<td>${avgSnr}</td>` +
-          `<td>${new Date(n.last_connection).toLocaleString()}</td>`;
+          `<td>${formatAgo(n.last_connection)}</td>`;
           frag.appendChild(tr);
         }
         tbody.appendChild(frag);
@@ -196,30 +197,63 @@
       newestID = rows[0].id;
       console.log(newestID);
       prependRows(rows);
+      pollNodesOnce(true);
     }
 
-    async function pollNodes() {
-      if (document.hidden) return;
+    let nodesInFlight = false;
+    let nodesRefreshQueued = false;
+
+    async function pollNodesOnce(force = false) {
+      if (nodesInFlight) {            // already fetching
+        if (force) nodesRefreshQueued = true; // queue one more refresh
+        return;
+      }
+      nodesInFlight = true;
       try {
-        const r = await fetch(`/api/nodes`, { cache: 'no-store' });
+        const r = await fetch('/api/nodes', { cache: 'no-store' });
         if (!r.ok) return;
         const data = await r.json();
         if (Array.isArray(data)) renderNodes(data);
-      } catch (_) {}
+      } finally {
+        nodesInFlight = false;
+        if (nodesRefreshQueued) {     // drain one queued refresh
+          nodesRefreshQueued = false;
+          pollNodesOnce(false);
+        }
+      }
     }
-
     let tMsg = null, tNode = null;
     function startPolling() {
       stopPolling();
       pollMessages();
-      pollNodes();
+      pollNodesOnce(false);
       tMsg  = setInterval(pollMessages, POLL_MS_MESSAGES);
-      tNode = setInterval(pollNodes,    POLL_MS_NODES);
+      tNode = setInterval(() => pollNodesOnce(false),    POLL_MS_NODES);
     }
     function stopPolling() {
       if (tMsg)  { clearInterval(tMsg);  tMsg  = null; }
       if (tNode) { clearInterval(tNode); tNode = null; }
     }
+
+    function formatAgo(seconds) {
+      const s = Math.trunc(seconds);
+      const abs = Math.abs(s);
+
+      const sec = abs % 60;
+      const min = Math.floor(abs / 60) % 60;
+      const hr  = Math.floor(abs / 3600) % 24;
+      const day = Math.floor(abs / 86400);
+
+      // build biggest→smallest non-zero parts (max 2 parts for brevity)
+      const parts = [];
+      if (day) parts.push(`${day} day${day!==1?'s':''}`);
+      if (hr && parts.length < 2) parts.push(`${hr} hr${hr!==1?'s':''}`);
+      if (min && parts.length < 2) parts.push(`${min} min${min!==1?'s':''}`);
+      if (!parts.length || (sec && parts.length < 2)) parts.push(`${sec} sec${sec!==1?'s':''}`);
+
+      return s >= 0 ? `${parts.join(' ')} ago` : `in ${parts.join(' ')}`;
+    }
+
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) stopPolling(); else startPolling();
     });
