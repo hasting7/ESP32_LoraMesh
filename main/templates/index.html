@@ -52,6 +52,7 @@
           <th># Msgs</th>
           <th>Avg RSSI (dBm)</th>
           <th>Avg SNR (dB)</th>
+          <th>Last Connection</th>
         </tr>
       </thead>
       <tbody id="node-tbody"></tbody>
@@ -128,7 +129,8 @@
             `<td>${esc(n.name)}</td>` +
             `<td>${esc(n.messages ?? 0)}</td>` +
             `<td>${avgRssi}</td>` +
-            `<td>${avgSnr}</td>`;
+            `<td>${avgSnr}</td>` +
+          `<td>${new Date(n.last_connection).toLocaleString()}</td>`;
           frag.appendChild(tr);
         }
         tbody.appendChild(frag);
