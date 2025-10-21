@@ -120,10 +120,6 @@ int send_message(DataEntry *data, int to_address) {
     free(instruction);
 
     return resp;
-
-    // arg_length += sprintf(to_address_s, "%d", to_address);
-    // arg_length += sprintf(len_s, "%d", )
-
 }
 
 LoraInstruction construct_command(Command cmd, const char *args[], int n) {

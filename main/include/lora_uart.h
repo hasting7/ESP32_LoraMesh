@@ -14,6 +14,8 @@ typedef enum {
 
 typedef char * LoraInstruction;
 
+#define MAX_PAYLOAD (240)
+
 void uart_init(void);
 int uart_send_and_block(LoraInstruction);
 LoraInstruction construct_command(Command, const char *[], int);

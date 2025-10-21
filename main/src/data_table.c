@@ -96,7 +96,7 @@ int format_data_as_json(DataEntry *data, char *out, int buff_size) {
     // content, source, destination, origin, steps, timestamp, id, length, rssi, snr, stage
     char time_buff[32];
     struct tm tm;
-    gmtime_r(&t, &tm);
+    gmtime_r(&data->timestamp, &tm);
     strftime(time_buff, 32, "%Y-%m-%dT%H:%M:%SZ", &tm);
 
     int n = sprintf(

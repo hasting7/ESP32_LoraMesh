@@ -148,6 +148,10 @@ static esp_err_t send_post_handler(httpd_req_t *req)
     int target;
     sscanf(buf, "target=%d&message=%249s", &target, message);
     message[249] = '\0';
+    // add back in spaces to messages
+    for (int i = 0; message[i]; i++) {
+        if (message[i] == '+') message[i] = ' ';
+    }
     free(buf);
 
     DataEntry *entry = create_data_object(message, g_address.i_addr, target, g_address.i_addr, 0, 0, 0);
