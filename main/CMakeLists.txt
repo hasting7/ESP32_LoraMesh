@@ -11,6 +11,6 @@ idf_component_register(
         "include"
 
     EMBED_FILES 
-        "style.css"
-        "index.html"
+        "templates/style.css"
+        "templates/index.html"
 )
