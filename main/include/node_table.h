@@ -1,12 +1,15 @@
 #ifndef NODE_TABLE_H
 #define NODE_TABLE_H
 
+#include <time.h>
+
 typedef struct node_table_entry {
 	Address address;
 	char *name;
 	float avg_rssi;			// avg rssi coming from node to this node
 	float avg_snr;			// avg rssi coming from node to this node
 	int messages;			// total messages coming from node to this node
+	time_t last_connection; // last time received message from node
 
 	struct node_table_entry *next;
 } NodeEntry;

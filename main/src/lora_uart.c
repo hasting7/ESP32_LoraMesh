@@ -54,6 +54,7 @@ static void uart_event_task(void *arg)
                         if (!node) {
                             node = create_node_object(origin);
                         }
+                        time(&node->last_connection);
                         update_metrics(node, rssi, snr);
 
                         // compile the table obj but for now dont worry

@@ -23,7 +23,6 @@ NodeEntry *create_node_object(int address) {
     if (!new_entry) {
         return NULL;
     }
-
     new_entry->avg_rssi = 0;
     new_entry->avg_snr = 0;
     new_entry->messages = 0;
@@ -31,6 +30,7 @@ NodeEntry *create_node_object(int address) {
     int l = snprintf(new_entry->address.s_addr, sizeof new_entry->address.s_addr, "%u", (unsigned)address);
     new_entry->address.s_addr[l] = '\0';
     new_entry->name = NULL;
+    time(&new_entry->last_connection);
 
     xSemaphoreTake(g_ntb_mutex, portMAX_DELAY);
 
@@ -52,6 +52,11 @@ NodeEntry *get_node_ptr(int address) {
 	}
 	return NULL;
 }
+
+
+// void remove_node(NodeEntry *node) {
+//     // remove node and all messages (destination = node, origin = node, source = node) 
+// }
 
 void update_metrics(NodeEntry *node, int rssi, int snr) {
 	if (node->messages == 0) { // init

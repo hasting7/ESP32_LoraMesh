@@ -19,9 +19,6 @@ void msg_table_init(void) {
 
 DataEntry *create_data_object(char *content, int src, int dst, int origin, int steps, int rssi, int snr)
 {
-    time_t timestamp;
-    time(&timestamp);
-
     DataEntry *new_entry = malloc(sizeof(DataEntry));
     if (!new_entry) {
         return NULL;
@@ -41,7 +38,7 @@ DataEntry *create_data_object(char *content, int src, int dst, int origin, int s
     new_entry->dst_node = dst;
     new_entry->origin_node = origin;
     new_entry->steps = steps;
-    new_entry->timestamp = timestamp;
+    time(&new_entry->timestamp);
     new_entry->next = NULL;
     new_entry->rssi = rssi;
     new_entry->snr = snr;
