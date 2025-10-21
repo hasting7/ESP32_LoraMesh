@@ -12,4 +12,5 @@ idf_component_register(
 
     EMBED_FILES 
         "style.css"
+        "index.html"
 )

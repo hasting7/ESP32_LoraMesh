@@ -10,19 +10,19 @@
 #include "nvs_flash.h"
 #include "esp_random.h"
 
-#include "node_globals.h"
 #include "data_table.h"
+#include "node_globals.h"
 #include "node_table.h"
 #include "mesh_config.h"
 #include "web_server.h"
 #include "lora_uart.h"
 
 
-static const char *header = "<!doctype html><html><link rel=\"stylesheet\" href=\"/style.css\"><body><div id=\"header\"><h1>ESP32 LoRa Mesh Network Interface</h1><h3>By: Ben Hastings</h3></div><hr>";
-static const char *form = "<form method=\"POST\" action=\"/send\"><label for=\"message\">Message:</label><textarea placeholder=\"Enter Message Here...\" value=\"message\" id=\"message\" name=\"message\" required></textarea><input type=\"submit\" value=\"Send Message\"></form>";
-static const char *footer = "</body></html>";
 static const char *TAG = "ap_http_hello";
 
+
+extern const uint8_t index_html_start[] asm("_binary_index_html_start");
+extern const uint8_t index_html_end[]   asm("_binary_index_html_end");
 extern const uint8_t style_css_start[] asm("_binary_style_css_start");
 extern const uint8_t style_css_end[]   asm("_binary_style_css_end");
 
@@ -34,30 +34,81 @@ static esp_err_t css_get_handler(httpd_req_t *req)
     return httpd_resp_send(req, (const char *)style_css_start, len);
 }
 
+// GET /
 static esp_err_t root_get_handler(httpd_req_t *req)
 {
-    printf("loading page\n");
     httpd_resp_set_type(req, "text/html");
-    httpd_resp_sendstr_chunk(req, header);
-    httpd_resp_sendstr_chunk(req, form);
+    // no-store so the page always loads fresh code you flash (optional)
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    size_t len = (size_t)(index_html_end - index_html_start);
+    return httpd_resp_send(req, (const char*)index_html_start, len);
+}
 
+static esp_err_t api_get_msgs(httpd_req_t *req) {
+    printf("GET /api/messages\n");
+    uint64_t since_id = 0;
+    bool have_since_id = false;
 
-    DataEntry *ptr = NULL;
-    char page[1024];
-    size_t n;
-    do {
-        ptr = render_messages_table_chunk(page, sizeof page, ptr, &n);
-        httpd_resp_sendstr_chunk(req, page);
-    } while (ptr);
+    int qlen = httpd_req_get_url_query_len(req);
+    if (qlen > 0) {
+        char *q = malloc(qlen + 1);
+        if (!q) {
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "OOM");
+            return ESP_FAIL;
+        }
+        if (httpd_req_get_url_query_str(req, q, qlen + 1) == ESP_OK) {
+            char v[32];
+            if (httpd_query_key_value(q, "since_id", v, sizeof v) == ESP_OK) {
+                char *end = NULL;
+                unsigned long long tmp = strtoull(v, &end, 10);
+                if (end && *end == '\0') {
+                    since_id = (uint64_t)tmp;
+                    have_since_id = true;
+                }
+            }
+        }
+        free(q);
+    }
 
+    httpd_resp_set_type(req, "application/json; charset=utf-8");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    httpd_resp_sendstr_chunk(req, "[");
 
-    n = render_node_table_html(page, sizeof page);
-    printf("node table size: %d\n", n);
-    page[1023] = '\0';
-    httpd_resp_sendstr_chunk(req, page);
+    DataEntry *walk = g_msg_table;
+    char buffer[1024];
+    bool first = true;
+    for (; walk; walk = walk->next) {
 
-    httpd_resp_sendstr_chunk(req, footer);
-    return httpd_resp_sendstr_chunk(req, NULL);;
+        if (have_since_id && walk->id == since_id) break;
+
+        if (!first) httpd_resp_sendstr_chunk(req, ",");
+        first = false;
+
+        format_data_as_json(walk, buffer, sizeof buffer);
+        httpd_resp_sendstr_chunk(req, buffer);
+    }
+    httpd_resp_sendstr_chunk(req, "]");
+    return httpd_resp_send_chunk(req, NULL, 0);
+}
+
+static esp_err_t api_get_nodes(httpd_req_t *req) {
+    printf("GET /api/nodes\n");
+    httpd_resp_set_type(req, "application/json; charset=utf-8");
+    httpd_resp_set_hdr(req, "Cache-Control", "no-store");
+    httpd_resp_sendstr_chunk(req, "[");
+
+    NodeEntry *walk = g_node_table;
+    char buffer[1024];
+    bool first = true;
+    for (; walk; walk = walk->next) {
+        if (!first) httpd_resp_sendstr_chunk(req, ",");
+        first = false;
+
+        format_node_as_json(walk, buffer, sizeof buffer);
+        httpd_resp_sendstr_chunk(req, buffer);
+    }
+    httpd_resp_sendstr_chunk(req, "]");
+    return httpd_resp_send_chunk(req, NULL, 0);
 }
 
 static esp_err_t send_post_handler(httpd_req_t *req)
@@ -95,18 +146,15 @@ static esp_err_t send_post_handler(httpd_req_t *req)
 
     // 2) Parse message=... (application/x-www-form-urlencoded)
     char message[250];
-    sscanf(buf, "message=%249s", message);
+    int target;
+    sscanf(buf, "target=%d&message=%249s", &target, message);
     message[249] = '\0';
     free(buf);
 
-    DataEntry *entry = create_data_object(message, g_address.i_addr, -1, g_address.i_addr, 0, 0, 0);
+    DataEntry *entry = create_data_object(message, g_address.i_addr, target, g_address.i_addr, 0, 0, 0);
 
-    send_message(entry, 0);
+    send_message(entry, target);
 
-    // // send message
-    // instr = construct_command(SEND, (const char *[]) {"0", "20", message, g_address.s_addr, "0", "0"}, 6);
-    // uart_send_and_block(instr);
-    // free(instr);
 
     // 3) Handle it (enqueue / store / broadcast)
     ESP_LOGI(TAG, "POST /send message: \"%s\"", message);
@@ -128,24 +176,30 @@ static httpd_handle_t start_http_server(void)
     if (httpd_start(&server, &cfg) == ESP_OK) {
         // GET /
         static const httpd_uri_t root = {
-            .uri = "/",
-            .method = HTTP_GET,
-            .handler = root_get_handler,
-            .user_ctx = NULL,
+            .uri = "/", .method = HTTP_GET, .handler = root_get_handler, .user_ctx = NULL,
         };
         // GET css
         static const httpd_uri_t css = {
             .uri = "/style.css", .method = HTTP_GET, .handler = css_get_handler
         };
+        // GET /api/messages?since_id=
+        const httpd_uri_t uri_api_msgs = {
+             .uri="/api/messages", .method=HTTP_GET, .handler=api_get_msgs
+        };
+         // GET /api/nodes
+        const httpd_uri_t uri_api_nodes = {
+            .uri="/api/nodes", .method=HTTP_GET, .handler=api_get_nodes
+        };
         // POST /send
         static const httpd_uri_t uri_send = {
-            .uri      = "/send",
-            .method   = HTTP_POST,
-            .handler  = send_post_handler,
+            .uri      = "/send", .method   = HTTP_POST, .handler  = send_post_handler,
         };
+
         httpd_register_uri_handler(server, &root);
         httpd_register_uri_handler(server, &css);
         httpd_register_uri_handler(server, &uri_send);
+        httpd_register_uri_handler(server, &uri_api_msgs);
+        httpd_register_uri_handler(server, &uri_api_nodes);
         ESP_LOGI(TAG, "HTTP server started on port %d", cfg.server_port);
     } else {
         ESP_LOGE(TAG, "Failed to start HTTP server");

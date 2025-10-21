@@ -1,37 +1,226 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-<link rel="stylesheet" href="/style.css">
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>ESP32 LoRa Mesh Network Interface</title>
+  <link rel="stylesheet" href="/style.css"/>
 </head>
 <body>
-	<div id="header">
-		<h1>ESP32 LoRa Mesh Network Interface</h1>
-		<h3>By: Ben Hastings</h3>
-	</div>
-	<hr>
-	<form method="POST" action="/send">
-		<label for="message">Message:</label>
-		<textarea placeholder="Enter Message Here..." value="message" id="message" name="message" required>
-			
-		</textarea>
-		<input type="submit" value="Send Message">
-	</form>
-	<div id="msg-table">
-		<table class="msg-table">
-            <thead>
-            	<tr>
-		            <th>Route Stage</th>
-		            <th>Origin</th>
-		            <th>Src</th>
-		            <th>RSSI (dBm)</th>
-		            <th>SNR (dB)</th>
-		            <th>Content</th>
-           		</tr>
-           	</thead>
-           	<tbody>
-           	</tbody>
-	</div>
-	<div id="node-table">
-	</div>
+  <div id="header">
+    <h1>ESP32 LoRa Mesh Network Interface</h1>
+    <h3>By: Ben Hastings</h3>
+  </div>
+
+  <hr/>
+
+  <form method="POST" action="/send">
+    <label for="message">Message:</label>
+    <label for="target">Target Node:</label>
+    <select id="target" name="target">
+    </select>
+    <textarea id="message" name="message" placeholder="Enter Message Here..." required></textarea>
+    <input type="submit" value="Send Message"/>
+  </form>
+
+  <h2 style="max-width:900px;margin:0 auto 8px;">Messages</h2>
+  <div id="msg-table">
+    <table class="msg-table">
+      <thead>
+        <tr>
+          <th>Route Stage</th>
+          <th>Origin</th>
+          <th>Src</th>
+          <th>RSSI (dBm)</th>
+          <th>SNR (dB)</th>
+          <th>Content</th>
+        </tr>
+      </thead>
+      <tbody id="msg-tbody"></tbody>
+    </table>
+    <div id="msg-empty" class="faded" style="text-align:center;margin-top:-36px;">No messages yet.</div>
+  </div>
+
+  <h2 style="max-width:900px;margin:0 auto 8px;">Nodes</h2>
+  <div id="node-table">
+    <table class="msg-table">
+      <thead>
+        <tr>
+          <th>Addr</th>
+          <th>Name</th>
+          <th># Msgs</th>
+          <th>Avg RSSI (dBm)</th>
+          <th>Avg SNR (dB)</th>
+        </tr>
+      </thead>
+      <tbody id="node-tbody"></tbody>
+    </table>
+    <div id="node-empty" class="faded" style="text-align:center;margin-top:-36px;">No nodes seen yet.</div>
+  </div>
+
+  <script>
+    // ==== CONFIG ====
+    // Replace this at render time with your local node address string, e.g., "5310"
+    const CURRENT_ADDR = window.CURRENT_ADDR || "0000";
+    const POLL_MS_MESSAGES = 1000;
+    const POLL_MS_NODES = 10000;
+
+    // Tracks newest message timestamp we've rendered
+
+    let newestID = 0
+
+    // Basic escaper
+    function esc(s) {
+      return String(s ?? "")
+        .replaceAll('&','&amp;')
+        .replaceAll('<','&lt;')
+        .replaceAll('>','&gt;')
+        .replaceAll('"','&quot;')
+        .replaceAll("'","&#39;");
+    }
+
+    function prependRows(rows) {
+      // rows are newest-first already; prepend in reverse so final DOM stays newest-first (topmost newest)
+      const tbody = document.getElementById('msg-tbody');
+      const empty = document.getElementById('msg-empty');
+      if (rows.length) empty.style.display = 'none';
+      for (let i = rows.length - 1; i >= 0; --i) {
+        const m = rows[i];
+        const tr = document.createElement('tr');
+        tr.className = `type-${Number(m.stage)||0}`;
+        tr.innerHTML =
+          `<td>${esc(m.stage)}</td><td>${esc(m.origin)}</td><td>${esc(m.source)}</td>`+
+          `<td>${esc(m.rssi)}</td><td>${esc(m.snr)}</td><td>${esc(m.content??'')}</td>`;
+        tbody.insertBefore(tr, tbody.firstChild);
+      }
+    }
+
+    function isNum(x){ return Number.isFinite(x); }
+
+    // Replace entire node table; mark this node with .this-node
+    function renderNodes(list) {
+      const tbody  = document.getElementById('node-tbody');
+      const empty  = document.getElementById('node-empty');
+      const select = document.getElementById('target');
+
+      // Preserve previously selected target (if any)
+      const prev = select.value;
+
+      // Rebuild NODE TABLE
+      tbody.innerHTML = '';
+      if (!Array.isArray(list) || list.length === 0) {
+        empty.style.display = '';
+      } else {
+        empty.style.display = 'none';
+        const frag = document.createDocumentFragment();
+
+        for (const n of list) {
+          const tr = document.createElement('tr');
+          const isCurrent = (n.current_node === 1) || (String(n.address) === String(CURRENT_ADDR));
+          if (isCurrent) tr.classList.add('this-node');
+
+          const avgRssi = isNum(n.avg_rssi) ? n.avg_rssi.toFixed(1) : esc(n.avg_rssi);
+          const avgSnr  = isNum(n.avg_snr)  ? n.avg_snr.toFixed(1)  : esc(n.avg_snr);
+
+          tr.innerHTML =
+            `<td>${esc(n.address)}</td>` +
+            `<td>${esc(n.name)}</td>` +
+            `<td>${esc(n.messages ?? 0)}</td>` +
+            `<td>${avgRssi}</td>` +
+            `<td>${avgSnr}</td>`;
+          frag.appendChild(tr);
+        }
+        tbody.appendChild(frag);
+      }
+
+      // Rebuild DROPDOWN (no duplicates, omit self)
+      // 1) Clear completely
+      select.innerHTML = '';
+
+      // 2) Placeholder (shown if nothing selected)
+      const ph = document.createElement('option');
+      ph.value = '';
+      ph.textContent = 'Choose a node…';
+      ph.disabled = true;
+      select.appendChild(ph);
+
+      const optBroadcast = document.createElement('option');
+      optBroadcast.value = '0';
+      optBroadcast.textContent = '0 — Broadcast';
+      select.appendChild(optBroadcast);
+
+      // 3) Add options for every non-self node
+      const ofrag = document.createDocumentFragment();
+      let hasPrev = false;
+      for (const n of list || []) {
+        const isCurrent = (n.current_node === 1) || (String(n.address) === String(CURRENT_ADDR));
+        if (isCurrent) continue; // skip self in target list
+
+        const opt = document.createElement('option');
+        opt.value = String(n.address);
+        opt.textContent = `${n.name ? n.name : 'Node'} — ${n.address}`;
+        if (prev && String(n.address) === String(prev)) {
+          opt.selected = true;   // preserve selection
+          hasPrev = true;
+        }
+        ofrag.appendChild(opt);
+      }
+      select.appendChild(ofrag);
+
+      // 4) If no previous selection, select first real option (if any)
+      if (!hasPrev) {
+        // If there is at least one non-placeholder option
+        const firstReal = select.querySelector('option:not([disabled])');
+        if (firstReal) {
+          firstReal.selected = true;
+        } else {
+          // No selectable options → keep placeholder selected
+          ph.selected = true;
+        }
+      }
+    }
+
+    // Pollers (pause when tab hidden)
+    async function pollMessages() {
+      const url = newestID
+        ? `/api/messages?since_id=${encodeURIComponent(newestID)}`
+        : `/api/messages`; // first load: get ALL (newest-first)
+      const r = await fetch(url, { cache:'no-store' });
+      if (!r.ok) return;
+      const rows = await r.json();            // newest-first array
+      if (!Array.isArray(rows) || !rows.length) return;
+      // update watermark from the FIRST element (newest)
+      newestID = rows[0].id;
+      console.log(newestID);
+      prependRows(rows);
+    }
+
+    async function pollNodes() {
+      if (document.hidden) return;
+      try {
+        const r = await fetch(`/api/nodes`, { cache: 'no-store' });
+        if (!r.ok) return;
+        const data = await r.json();
+        if (Array.isArray(data)) renderNodes(data);
+      } catch (_) {}
+    }
+
+    let tMsg = null, tNode = null;
+    function startPolling() {
+      stopPolling();
+      pollMessages();
+      pollNodes();
+      tMsg  = setInterval(pollMessages, POLL_MS_MESSAGES);
+      tNode = setInterval(pollNodes,    POLL_MS_NODES);
+    }
+    function stopPolling() {
+      if (tMsg)  { clearInterval(tMsg);  tMsg  = null; }
+      if (tNode) { clearInterval(tNode); tNode = null; }
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) stopPolling(); else startPolling();
+    });
+    startPolling();
+  </script>
 </body>
 </html>

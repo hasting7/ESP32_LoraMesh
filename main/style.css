@@ -1,58 +1,83 @@
-html, body {
-	background: #fefefe;
+/* Base */
+:root {
+  --bg: #fefefe;
+  --card: #fff;
+  --text: #222;
+  --muted: #666;
+  --border: #ddd;
+  --shadow: 0 6px 20px rgba(0,0,0,.06);
+  --focus: rgba(0,0,0,.08);
+  --accent: #111;
 }
 
-#header {
-	text-align: center;
-}
-#header * {
-  margin-top: 0px;
-  margin-bottom: 0px;
-}
+* { box-sizing: border-box; }
+html, body { background: var(--bg); color: var(--text); }
 
+#header { text-align: center; }
+#header * { margin: 0; }
+
+/* Form card */
 form {
   max-width: 900px;
   margin: 16px auto 24px;
   padding: 16px;
-  background: #fff;
-  border: 1px solid #ddd;
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  box-shadow: 0 6px 20px rgba(0,0,0,.06);
+  box-shadow: var(--shadow);
   display: grid;
   gap: 12px;
 }
 
 form label {
   font-weight: 600;
-  color: #222;
+  color: var(--text);
 }
 
-form textarea {
+/* Inputs */
+form textarea,
+form select {
   width: 100%;
-  min-height: 120px;
-  padding: 12px 14px;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border);
   border-radius: 10px;
   font: inherit;
-  resize: vertical;
   background: #fff;
-  color: #222;
+  color: var(--text);
   transition: border-color .15s, box-shadow .15s, background .15s;
 }
+
+/* Smaller textarea that fits the form nicely */
+form textarea {
+  min-height: 80px;          /* smaller than before */
+  max-height: 40vh;          /* prevent overgrowth */
+  padding: 10px 12px;
+  resize: vertical;
+}
 form textarea::placeholder { color: #888; }
-form textarea:focus {
+form textarea:focus,
+form select:focus {
   outline: none;
   border-color: #333;
-  box-shadow: 0 0 0 3px rgba(0,0,0,.08);
+  box-shadow: 0 0 0 3px var(--focus);
 }
 
-/* Button */
+/* Pretty select (native-friendly) */
+form select {
+  padding: 10px 36px 10px 12px;
+  appearance: none;          /* remove native arrow */
+  background:
+    linear-gradient(#fff,#fff) padding-box,
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23333' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>")
+      no-repeat right 10px center / 14px 14px;
+}
+
+/* Submit button */
 form input[type="submit"] {
   justify-self: start;
   padding: 10px 16px;
   border: 1px solid #222;
   border-radius: 10px;
-  background: #111;
+  background: var(--accent);
   color: #fff;
   font-weight: 600;
   cursor: pointer;
@@ -62,38 +87,49 @@ form input[type="submit"] {
 form input[type="submit"]:hover { opacity: .92; }
 form input[type="submit"]:active { transform: translateY(1px); }
 
+/* Tables */
 .msg-table {
   max-width: 900px;
   margin: 0 auto 48px;
-  background: #fff;
-  border: 1px solid #ddd;
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: 12px;
-  box-shadow: 0 6px 20px rgba(0,0,0,.06);
+  box-shadow: var(--shadow);
   border-collapse: collapse;
   width: 100%;
   font-size: 14px;
+  overflow: hidden; /* clip rounded corners */
 }
 .msg-table thead th {
-  background: #f0f0f0;
+  background: #f6f6f6;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 .msg-table th,
 .msg-table td {
-  border: 1px solid #ddd;
+  border: 1px solid var(--border);
   padding: 8px 10px;
   text-align: left;
-  color: #222;
+  color: var(--text);
 }
+.msg-table tbody tr:hover { background: #fafafa; }
+
+/* Stage color coding */
+.type-0  { color:#0B63CE; background:#E7F1FF; border:1px solid #CFE4FF; }
+.type-1  { color:#92400E; background:#FFFBEB; border:1px solid #FDE68A; }
+.type-2  { color:#1A7F37; background:#E8F5EC; border:1px solid #CDEFD7; }
+
+/* Highlight this ESP32's own node in node table */
+.this-node { background: #eafaf1; }
+
+/* Helpers */
+.faded { color: var(--muted); }
 
 /* Responsive tweaks */
 @media (max-width: 640px) {
   #header { padding: 0 12px; }
   form { padding: 12px; }
-  form textarea { min-height: 100px; }
+  form textarea { min-height: 72px; }
   .msg-table { font-size: 13px; }
 }
-
-.type-0  { color:#0B63CE; background:#E7F1FF; border:1px solid #CFE4FF; }
-.type-1 { color:#92400E; background:#FFFBEB; border:1px solid #FDE68A; }
-.type-2  { color:#1A7F37; background:#E8F5EC; border:1px solid #CDEFD7; }
-
-.this-node { background: #eafaf1; }

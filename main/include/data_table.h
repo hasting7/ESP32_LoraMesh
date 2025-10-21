@@ -16,7 +16,7 @@ typedef struct data_entry_struct {
     int dst_node;               // node where message is trying to be sent
     int origin_node;            // node where message originated
     int steps;                  // nodes visited
-    time_t timestamp;           // timestamp of arrival
+    int64_t timestamp;           // timestamp of arrival
     uint16_t id;
 
     int length;                 // length of message content   
@@ -31,7 +31,6 @@ void free_data_object(DataEntry **ptr);
 void fmt_time_iso_utc(time_t t, char out[32]);
 void table_insert(DataEntry *data);
 void msg_table_init(void);
-DataEntry* render_messages_table_chunk(char *, size_t , const DataEntry *, size_t *);
-
+int format_data_as_json(DataEntry *, char *, int);
 
 #endif // DATA_TABLE_H

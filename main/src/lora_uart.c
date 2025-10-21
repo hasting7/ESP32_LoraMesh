@@ -7,9 +7,9 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 
+#include "data_table.h"
 #include "node_globals.h"
 #include "mesh_config.h"
-#include "data_table.h"
 #include "node_table.h"
 #include "lora_uart.h"
 
@@ -172,6 +172,12 @@ LoraInstruction construct_command(Command cmd, const char *args[], int n) {
         expect_args = 2;
     } else if (cmd == NETWORKID) {
         name = "NETWORKID";
+        expect_args = 1;
+    } else if (cmd == FACTORY) {
+        name = "FACTORY";
+        expect_args = 0;
+    } else if (cmd == CRFOP) {
+        name = "CRFOP";
         expect_args = 1;
     }
     if (n != expect_args) {

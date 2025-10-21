@@ -7,7 +7,9 @@ typedef enum {
 	RESET,
 	PARAMETER,
 	NETWORKID,
-	BAND
+	BAND,
+	FACTORY,
+	CRFOP
 } Command;
 
 typedef char * LoraInstruction;

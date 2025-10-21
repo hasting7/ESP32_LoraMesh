@@ -11,12 +11,14 @@ typedef struct node_table_entry {
 	struct node_table_entry *next;
 } NodeEntry;
 
+extern NodeEntry *g_node_table;
+
 #define EMA_SMOOTHING (0.15)
 
 NodeEntry *get_node_ptr(int);
 void node_table_init(void);
 NodeEntry *create_node_object(int);
 void update_metrics(NodeEntry *node, int rssi, int snr);
-size_t render_node_table_html(char *, size_t);
+int format_node_as_json(NodeEntry *, char *, int);
 
 #endif

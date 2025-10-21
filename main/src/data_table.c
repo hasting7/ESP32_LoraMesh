@@ -5,18 +5,30 @@
 
 #include "data_table.h"
 #include "node_globals.h"
+#include "node_table.h"
 
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "esp_random.h"
 
 
-static DataEntry *g_table = NULL;
 static SemaphoreHandle_t g_dtb_mutex; 
 
 void msg_table_init(void) {
     g_dtb_mutex = xSemaphoreCreateMutex();
 }
+
+static uint16_t rand_id(void) {
+    const uint32_t m = 9000; // (10000 - 1000) no leading 0s
+    const uint32_t limit = UINT32_MAX - (UINT32_MAX % m);
+    uint32_t r;
+    do {
+        r = esp_random();
+    } while (r >= limit);
+    return (uint16_t)((r % m) + 1000); // 1000..9999
+}
+
 
 DataEntry *create_data_object(char *content, int src, int dst, int origin, int steps, int rssi, int snr)
 {
@@ -47,6 +59,7 @@ DataEntry *create_data_object(char *content, int src, int dst, int origin, int s
     new_entry->rssi = rssi;
     new_entry->snr = snr;
     new_entry->length = (int) len;
+    new_entry->id = rand_id();
 
     if (g_address.i_addr == origin) {
         new_entry->stage = MSG_AT_SOURCE;
@@ -90,7 +103,7 @@ void table_insert(DataEntry *data)
 
     xSemaphoreTake(g_dtb_mutex, portMAX_DELAY);
 
-    DataEntry **pp = &g_table;
+    DataEntry **pp = &g_msg_table;
 
     while (*pp && !is_after(data->timestamp, (*pp)->timestamp)) {
         pp = &(*pp)->next;
@@ -104,96 +117,17 @@ void table_insert(DataEntry *data)
     printf("data added %s\n", data->content ? data->content : "(null)");
 }
 
-
-DataEntry* render_messages_table_chunk(char *out, size_t out_cap,
-                                       const DataEntry *ptr, size_t *out_len)
-{
-    if (out_len) *out_len = 0;
-    if (!out || out_cap == 0) return (DataEntry*)ptr;
-
-    char *p = out;
-    size_t left = out_cap;
-
-    // ---- helpers ----
-    #define APPENDF(...) do {                                           \
-        if (left > 1) {                                                 \
-            int _n = snprintf(p, left, __VA_ARGS__);                    \
-            if (_n < 0) _n = 0;                                         \
-            size_t _w = (size_t)_n;                                     \
-            if (_w >= left) { p += (left - 1); left = 1; }              \
-            else         { p += _w;            left -= _w; }            \
-        }                                                               \
-    } while (0)
-
-    #define APPEND_ESC_HTML(S) do {                                     \
-        const unsigned char *_s = (const unsigned char*)((S)?(S):"");   \
-        for (; *_s; ++_s) {                                             \
-            switch (*_s) {                                              \
-                case '&': APPENDF("&amp;");  break;                     \
-                case '<': APPENDF("&lt;");   break;                     \
-                case '>': APPENDF("&gt;");   break;                     \
-                case '\"':APPENDF("&quot;"); break;                     \
-                case '\'':APPENDF("&#39;");  break;                     \
-                default: if (left > 1) { *p++ = (char)*_s; --left; }    \
-            }                                                           \
-        }                                                               \
-    } while (0)
-    // -----------------
-
-    const DataEntry *next_ptr = NULL;
-
-    if (ptr == NULL) {
-        // Header
-        APPENDF(
-            "<table class=\"msg-table\">"
-            "<thead><tr>"
-            "<th>Route Stage</th>"
-            "<th>Origin</th>"
-            "<th>Src</th>"
-            "<th>RSSI (dBm)</th>"
-            "<th>SNR (dB)</th>"
-            "<th>Content</th>"
-            "</tr></thead><tbody>"
-        );
-
-        if (!g_table) {
-            // Empty table: body + footer
-            APPENDF("<tr><td colspan=\"6\">No messages yet.</td></tr>");
-            APPENDF("</tbody></table>");
-            next_ptr = NULL;
-        } else {
-            // More rows to come
-            next_ptr = g_table;
-        }
-    } else {
-        // One row
-        APPENDF("<tr class=\"type-%d\">", (int)ptr->stage);
-        APPENDF("<td>%d</td>", ptr->stage);
-        APPENDF("<td>%d</td>", ptr->origin_node);
-        APPENDF("<td>%d</td>", ptr->src_node);
-        APPENDF("<td>%d</td>", ptr->rssi);
-        APPENDF("<td>%d</td>", ptr->snr);
-
-        APPENDF("<td>");
-        APPEND_ESC_HTML(ptr->content);  // if content may be binary, switch to length-based escaping
-        APPENDF("</td>");
-
-        APPENDF("</tr>");
-
-        // Footer if this was the last row
-        if (ptr->next == NULL) {
-            APPENDF("</tbody></table>");
-        }
-
-        next_ptr = ptr->next;
-    }
-
-    // NUL-terminate even if truncated
-    if (left > 0) *p = '\0'; else out[out_cap - 1] = '\0';
-    if (out_len) *out_len = (size_t)(p - out);
-
-    #undef APPENDF
-    #undef APPEND_ESC_HTML
-
-    return (DataEntry*)next_ptr;
+int format_data_as_json(DataEntry *data, char *out, int buff_size) {
+    // content, source, destination, origin, steps, timestamp, id, length, rssi, snr, stage
+    char time_buff[32];
+    fmt_time_iso_utc(data->timestamp, time_buff);
+    int n = sprintf(
+        out,
+        "{\"content\" : \"%s\", \"source\" : %d, \"destination\" : %d, \"origin\" : %d, \"steps\" : %d, \"timestamp\" : \"%s\", \"id\" : %d, \"length\" : %d, \"rssi\" : %d, \"snr\" : %d, \"stage\" : %d}",
+        data->content, data->src_node, data->dst_node, data->origin_node, data->steps,
+        time_buff, data->id, data->length, data->rssi, data->snr, data->stage
+    );
+    out[buff_size - 1] = '\0';
+    return n;
 }
+
