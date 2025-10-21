@@ -73,13 +73,33 @@
 
     // Basic escaper
     function esc(s) {
-      return String(s ?? "")
-        .replaceAll('&','&amp;')
-        .replaceAll('<','&lt;')
-        .replaceAll('>','&gt;')
-        .replaceAll('"','&quot;')
-        .replaceAll("'","&#39;");
+      let str = String(s ?? "");
+
+      // If the string might be form-encoded, normalize '+' to '%20' first.
+      if (str.includes("+") || str.includes("%")) {
+        const prepared = str.replace(/\+/g, "%20");
+        try {
+          str = decodeURIComponent(prepared);
+        } catch {
+          // Handle stray '%' gracefully by decoding only valid %HH
+          str = prepared.replace(/%([0-9A-Fa-f]{2})/g,
+            (_, hh) => String.fromCharCode(parseInt(hh, 16))
+          );
+        }
+      }
+
+      // Normalize curly apostrophe to straight (optional)
+      str = str.replace(/\u2019/g, "'");
+
+      // Finally, HTML-escape
+      return str
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
     }
+
 
     function prependRows(rows) {
       // rows are newest-first already; prepend in reverse so final DOM stays newest-first (topmost newest)

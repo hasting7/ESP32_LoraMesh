@@ -33,3 +33,14 @@ void msg_table_init(void);
 int format_data_as_json(DataEntry *, char *, int);
 
 #endif // DATA_TABLE_H
+
+
+/*
+types of messages
+non-critical
+critical (needs ack)
+broadcast
+chunke
+
+
+*/
