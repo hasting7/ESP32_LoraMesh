@@ -1,5 +1,8 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
+#include <stdlib.h>
+#include <ctype.h>
 
 #include "driver/uart.h"
 #include "driver/gpio.h"
@@ -16,9 +19,6 @@
 
 static QueueHandle_t uart_queue;
 
-#include <stdbool.h>
-
-// Forward decl
 static bool parse_rcv_line(const char *line,
                            int *from, int *len, char *data, size_t data_cap,
                            int *origin, int *dest, int *step, int *rssi, int *snr);
@@ -79,7 +79,6 @@ static void uart_event_task(void *arg)
         }
 
         case UART_DATA:
-            // We rely on PATTERN_DET; ignore partials here.
             break;
 
         case UART_FIFO_OVF:
@@ -95,13 +94,6 @@ static void uart_event_task(void *arg)
     }
 }
 
-#include <stdbool.h>
-#include <string.h>
-#include <stdlib.h>
-#include <ctype.h>
-
-// Split from the END of a data string by commas to pull 3 ints (origin,dest,step).
-// Returns true on success and sets *msg_end to the length of the "message" prefix.
 static bool extract_ods_from_data_tail(const char *data, int data_len,
                                        int *origin, int *dest, int *step,
                                        int *msg_len_out)
@@ -304,7 +296,9 @@ int send_message(DataEntry *data, int to_address) {
 
     printf("Sending: %s\n", instruction);
     int resp = uart_send_and_block(instruction);
+
     printf("Response code: %d\n", resp);
+    data->transfer_status = resp;
 
     free(instruction);
     return resp;
@@ -347,7 +341,12 @@ int uart_send_and_block(LoraInstruction instruction) {
     printf("Collected Response: '%s'\n", response);
 
     // Consider success if "+OK" appears anywhere in the line
-    return (strstr(response, "+OK") != NULL) ? 0 : -1;
+    if (strncmp(response, "+OK", 3) == 0) return OK;
+    // error
+    int error_num;
+    if (sscanf(response, "+ERR=%d", &error_num) == 1) return error_num;
+
+    return NO_STATUS;
 }
 
 

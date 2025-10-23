@@ -38,6 +38,7 @@ DataEntry *create_data_object(char *content, int src, int dst, int origin, int s
     new_entry->dst_node = dst;
     new_entry->origin_node = origin;
     new_entry->steps = steps;
+    new_entry->transfer_status = NO_STATUS;
     time(&new_entry->timestamp);
     new_entry->next = NULL;
     new_entry->rssi = rssi;
@@ -98,9 +99,9 @@ int format_data_as_json(DataEntry *data, char *out, int buff_size) {
 
     int n = sprintf(
         out,
-        "{\"content\" : \"%s\", \"source\" : %d, \"destination\" : %d, \"origin\" : %d, \"steps\" : %d, \"timestamp\" : \"%s\", \"id\" : %d, \"length\" : %d, \"rssi\" : %d, \"snr\" : %d, \"stage\" : %d}",
+        "{\"content\" : \"%s\", \"source\" : %d, \"destination\" : %d, \"origin\" : %d, \"steps\" : %d, \"timestamp\" : \"%s\", \"id\" : %d, \"length\" : %d, \"rssi\" : %d, \"snr\" : %d, \"stage\" : %d, \"transfer_status\" : %d}",
         data->content, data->src_node, data->dst_node, data->origin_node, data->steps,
-        time_buff, data->id, data->length, data->rssi, data->snr, data->stage
+        time_buff, data->id, data->length, data->rssi, data->snr, data->stage, data->transfer_status
     );
     out[buff_size - 1] = '\0';
     return n;

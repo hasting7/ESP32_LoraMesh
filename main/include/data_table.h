@@ -9,6 +9,8 @@ typedef enum {
     MSG_AT_DESTINATION  // this node is the destination
 } MessageRouteStage;
 
+#define NO_STATUS (-1)
+#define OK (0)
 
 typedef struct data_entry_struct {
     char *content;              // content of message
@@ -17,7 +19,9 @@ typedef struct data_entry_struct {
     int origin_node;            // node where message originated
     int steps;                  // nodes visited
     int64_t timestamp;           // timestamp of arrival
-    uint16_t id;
+    uint16_t id;                // unique id of message
+    int transfer_status;        // status coming from lora chip after trying to be sent
+
 
     int length;                 // length of message content   
     int rssi;                   // Received Signal Strength Indicator
