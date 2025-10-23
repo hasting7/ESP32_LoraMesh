@@ -10,6 +10,7 @@ typedef struct node_table_entry {
 	float avg_snr;			// avg rssi coming from node to this node
 	int messages;			// total messages coming from node to this node
 	time_t last_connection; // last time received message from node
+	char reachable;	// 1 for can reach 0 for cant reach
 
 	struct node_table_entry *next;
 } NodeEntry;

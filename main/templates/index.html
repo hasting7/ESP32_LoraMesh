@@ -29,7 +29,8 @@
       <thead>
         <tr>
           <th>ID</th>
-          <th>Status</th>
+          <th>Send Status</th>
+          <th>Ack Status</th>
           <th>Origin</th>
           <th>Source</th>
           <th>Destination</th>
@@ -53,6 +54,7 @@
           <th># Msgs</th>
           <th>Avg RSSI (dBm)</th>
           <th>Avg SNR (dB)</th>
+          <th>Reachable</th>
           <th>Last Connection</th>
         </tr>
       </thead>
@@ -111,14 +113,16 @@
         const m = rows[i];
         const tr = document.createElement('tr');
         let status = "OK"
-        if (m.transfer_status === -1) {
+        if (m.transfer_status === -2) {
           status = "No Status"
+        } else if (m.transfer_status == -1) {
+          status = "Queued"
         } else if (m.transfer_status > 0) {
           status = `ERR ${m.transfer_status}`
         }
         tr.className = `type-${Number(m.stage)||0}`;
         tr.innerHTML =
-          `<td>${esc(m.id)}</td><td>${status}</td><td>${esc(m.origin)}</td><td>${esc(m.source)}</td><td>${esc(m.destination)}</td>`+
+          `<td>${esc(m.id)}</td><td>${status}</td><td>${m.ack_status}</td><td>${esc(m.origin)}</td><td>${esc(m.source)}</td><td>${esc(m.destination)}</td>`+
           `<td>${esc(m.rssi)}</td><td>${esc(m.snr)}</td><td>${esc(m.content??'')}</td>`;
         tbody.insertBefore(tr, tbody.firstChild);
       }
@@ -152,13 +156,27 @@
           const avgRssi = isNum(n.avg_rssi) ? n.avg_rssi.toFixed(1) : esc(n.avg_rssi);
           const avgSnr  = isNum(n.avg_snr)  ? n.avg_snr.toFixed(1)  : esc(n.avg_snr);
 
+          let reachable = "Yes";
+          if (n.reachable === 0) {
+            reachable = "No";
+          }
+          if (!isCurrent) {
+            if ((n.reachable === 0)) {
+              tr.classList.add('non-reachable')
+            } else {
+              tr.classList.add('reachable')
+            }
+          }
+          
+
           tr.innerHTML =
             `<td>${esc(n.address)}</td>` +
             `<td>${esc(n.name)}</td>` +
             `<td>${esc(n.messages ?? 0)}</td>` +
             `<td>${avgRssi}</td>` +
             `<td>${avgSnr}</td>` +
-          `<td>${formatAgo(n.last_connection)}</td>`;
+            `<td>${reachable}</td>` +
+            `<td>${formatAgo(n.last_connection)}</td>`;
           frag.appendChild(tr);
         }
         tbody.appendChild(frag);

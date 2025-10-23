@@ -17,8 +17,9 @@ void msg_table_init(void) {
     g_dtb_mutex = xSemaphoreCreateMutex();
 }
 
-DataEntry *create_data_object(char *content, int src, int dst, int origin, int steps, int rssi, int snr)
+DataEntry *create_data_object(MessageType type, char *content, int src, int dst, int origin, int steps, int rssi, int snr)
 {
+    printf("creating object for: %s\n",content);
     DataEntry *new_entry = malloc(sizeof(DataEntry));
     if (!new_entry) {
         return NULL;
@@ -38,7 +39,9 @@ DataEntry *create_data_object(char *content, int src, int dst, int origin, int s
     new_entry->dst_node = dst;
     new_entry->origin_node = origin;
     new_entry->steps = steps;
+    new_entry->message_type = type;
     new_entry->transfer_status = NO_STATUS;
+    new_entry->ack_status = 0;
     time(&new_entry->timestamp);
     new_entry->next = NULL;
     new_entry->rssi = rssi;
@@ -73,6 +76,7 @@ void free_data_object(DataEntry **ptr)
 void table_insert(DataEntry *data)
 {
     if (!data) return;
+    printf("inserting into table: %s\n",data->content);
 
     xSemaphoreTake(g_dtb_mutex, portMAX_DELAY);
 
@@ -99,11 +103,13 @@ int format_data_as_json(DataEntry *data, char *out, int buff_size) {
 
     int n = sprintf(
         out,
-        "{\"content\" : \"%s\", \"source\" : %d, \"destination\" : %d, \"origin\" : %d, \"steps\" : %d, \"timestamp\" : \"%s\", \"id\" : %d, \"length\" : %d, \"rssi\" : %d, \"snr\" : %d, \"stage\" : %d, \"transfer_status\" : %d}",
+        "{\"content\" : \"%s\", \"source\" : %d, \"destination\" : %d, \"origin\" : %d, \"steps\" : %d, \"timestamp\" : \"%s\", \"id\" : %d, \"length\" : %d, \"rssi\" : %d, \"snr\" : %d, \"stage\" : %d, \"transfer_status\" : %d, \"ack_status\" : %d, \"message_type\" : %d}",
         data->content, data->src_node, data->dst_node, data->origin_node, data->steps,
-        time_buff, data->id, data->length, data->rssi, data->snr, data->stage, data->transfer_status
+        time_buff, data->id, data->length, data->rssi, data->snr, data->stage, data->transfer_status, data->ack_status, data->message_type
     );
     out[buff_size - 1] = '\0';
     return n;
 }
+
+
 

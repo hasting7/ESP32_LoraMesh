@@ -154,9 +154,15 @@ static esp_err_t send_post_handler(httpd_req_t *req)
     }
     free(buf);
 
-    DataEntry *entry = create_data_object(message, g_address.i_addr, target, g_address.i_addr, 0, 0, 0);
-
-    send_message(entry, target);
+    DataEntry *entry = create_data_object(
+        (0 == target) ? BROADCAST : NORMAL,
+        message, 
+        g_address.i_addr, 
+        target, 
+        g_address.i_addr, 
+        0, 0, 0
+    );
+    queue_send(entry);
 
 
     // 3) Handle it (enqueue / store / broadcast)

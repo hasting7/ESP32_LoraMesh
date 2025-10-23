@@ -9,28 +9,44 @@ typedef enum {
     MSG_AT_DESTINATION  // this node is the destination
 } MessageRouteStage;
 
-#define NO_STATUS (-1)
-#define OK (0)
+typedef enum { 
+    BROADCAST,
+    NORMAL,
+    ACK,
+    CRITICAL,
+    MAINTENANCE,
+    PING,
+} MessageType;
+
+typedef enum {
+    NO_STATUS = -2,
+    QUEUED = -1,
+    SENT = 0,
+    ERR,
+} MessageSendingStatus;
+
 
 typedef struct data_entry_struct {
+    int64_t timestamp;           // timestamp of arrival
     char *content;              // content of message
+    struct data_entry_struct *next;
     int src_node;               // node where message came from last
     int dst_node;               // node where message is trying to be sent
     int origin_node;            // node where message originated
     int steps;                  // nodes visited
-    int64_t timestamp;           // timestamp of arrival
-    uint16_t id;                // unique id of message
-    int transfer_status;        // status coming from lora chip after trying to be sent
-
-
     int length;                 // length of message content   
     int rssi;                   // Received Signal Strength Indicator
     int snr;                    // signal to noise ratio
-    struct data_entry_struct *next;
+    MessageSendingStatus transfer_status;        // status coming from lora chip after trying to be sent
+    MessageType message_type;   // this is the type of message it is. broadcast, normal, critical, maintnace, etc
     MessageRouteStage stage;
+
+    uint16_t id;                // unique id of message
+    int ack_status;              // if it is a message requiring ack, did it get one?
+
 } DataEntry;
 
-DataEntry *create_data_object(char *content, int src, int dst, int origin, int steps, int rssi, int snr);
+DataEntry *create_data_object(MessageType type, char *content, int src, int dst, int origin, int steps, int rssi, int snr);
 void free_data_object(DataEntry **ptr);
 void table_insert(DataEntry *data);
 void msg_table_init(void);

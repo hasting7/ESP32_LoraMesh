@@ -26,6 +26,7 @@ NodeEntry *create_node_object(int address) {
     new_entry->avg_rssi = 0;
     new_entry->avg_snr = 0;
     new_entry->messages = 0;
+    new_entry->reachable = 0;
     new_entry->address.i_addr = address;
     int l = snprintf(new_entry->address.s_addr, sizeof new_entry->address.s_addr, "%u", (unsigned)address);
     new_entry->address.s_addr[l] = '\0';
@@ -76,8 +77,8 @@ int format_node_as_json(NodeEntry *data, char *out, int buff_size) {
     // name, address, avg_rssi, avg_snr, messages
     int n = sprintf(
         out,
-        "{\"name\" : \"%s\", \"address\" : \"%s\", \"avg_rssi\" : %.2f, \"avg_snr\" : %.2f, \"messages\" : %d, \"current_node\" : %d, \"last_connection\" : %.2f}",
-        (data->name) ? data->name : "(null)", data->address.s_addr, data->avg_rssi, data->avg_snr, data->messages, data->address.i_addr == g_address.i_addr, difftime(time(NULL), data->last_connection)
+        "{\"name\" : \"%s\", \"address\" : \"%s\", \"avg_rssi\" : %.2f, \"avg_snr\" : %.2f, \"messages\" : %d, \"current_node\" : %d, \"last_connection\" : %.2f, \"reachable\" : %d}",
+        (data->name) ? data->name : "(null)", data->address.s_addr, data->avg_rssi, data->avg_snr, data->messages, data->address.i_addr == g_address.i_addr, difftime(time(NULL), data->last_connection), (data->reachable) ? 1 : 0
     );
     out[buff_size - 1] = '\0';
     return n;

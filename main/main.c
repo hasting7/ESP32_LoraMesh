@@ -1,6 +1,8 @@
 #include <stdio.h>
 
 #include "driver/uart.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #include "data_table.h"
 #include "node_globals.h"
@@ -37,4 +39,24 @@ void app_main(void)
     free(instr);
 
     create_node_object(g_address.i_addr);
+
+    // create message sending task
+
+    xTaskCreate(message_sending_task, "message sender", 4096, NULL, 5, NULL);
+
+
+    // attempt to reach nodes
+    // TickType_t last = xTaskGetTickCount();
+
+    // for (;;) {
+    //     NodeEntry *node = g_node_table;
+    //     while (node) {
+    //         if (difftime(time(NULL), node->last_connection) >= 60) {
+    //             node->reachable = 0;
+    //         }
+    //         node = node->next;
+    //     }
+
+    //     vTaskDelayUntil(&last, pdMS_TO_TICKS(60 * 1000));   // wait one minute
+    // }
 }
