@@ -25,6 +25,8 @@ typedef enum {
     ERR,
 } MessageSendingStatus;
 
+#define NO_ID (0)
+
 
 typedef struct data_entry_struct {
     int64_t timestamp;           // timestamp of arrival
@@ -33,6 +35,7 @@ typedef struct data_entry_struct {
     int src_node;               // node where message came from last
     int dst_node;               // node where message is trying to be sent
     int origin_node;            // node where message originated
+    int target_node;            // node where msg is going next
     int steps;                  // nodes visited
     int length;                 // length of message content   
     int rssi;                   // Received Signal Strength Indicator
@@ -46,11 +49,12 @@ typedef struct data_entry_struct {
 
 } DataEntry;
 
-DataEntry *create_data_object(MessageType type, char *content, int src, int dst, int origin, int steps, int rssi, int snr);
+DataEntry *create_data_object(int id, MessageType type, char *content, int src, int dst, int origin, int steps, int rssi, int snr);
 void free_data_object(DataEntry **ptr);
 void table_insert(DataEntry *data);
 void msg_table_init(void);
 int format_data_as_json(DataEntry *, char *, int);
+DataEntry *get_msg_ptr(int id);
 
 #endif // DATA_TABLE_H
 

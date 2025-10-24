@@ -17,7 +17,7 @@ void msg_table_init(void) {
     g_dtb_mutex = xSemaphoreCreateMutex();
 }
 
-DataEntry *create_data_object(MessageType type, char *content, int src, int dst, int origin, int steps, int rssi, int snr)
+DataEntry *create_data_object(int id, MessageType type, char *content, int src, int dst, int origin, int steps, int rssi, int snr)
 {
     printf("creating object for: %s\n",content);
     DataEntry *new_entry = malloc(sizeof(DataEntry));
@@ -39,6 +39,7 @@ DataEntry *create_data_object(MessageType type, char *content, int src, int dst,
     new_entry->dst_node = dst;
     new_entry->origin_node = origin;
     new_entry->steps = steps;
+    new_entry->target_node = 0;
     new_entry->message_type = type;
     new_entry->transfer_status = NO_STATUS;
     new_entry->ack_status = 0;
@@ -47,7 +48,7 @@ DataEntry *create_data_object(MessageType type, char *content, int src, int dst,
     new_entry->rssi = rssi;
     new_entry->snr = snr;
     new_entry->length = (int) len;
-    new_entry->id = rand_id();
+    new_entry->id = (id == NO_ID) ? rand_id() : id;
 
     if (g_address.i_addr == origin) {
         new_entry->stage = MSG_AT_SOURCE;
@@ -60,6 +61,15 @@ DataEntry *create_data_object(MessageType type, char *content, int src, int dst,
     table_insert(new_entry);
 
     return new_entry;
+}
+
+DataEntry *get_msg_ptr(int id) {
+    DataEntry *walk = g_msg_table;
+    while (walk) {
+        if (walk->id == id) return walk;
+        walk = walk->next;
+    }
+    return NULL;
 }
 
 void free_data_object(DataEntry **ptr)
