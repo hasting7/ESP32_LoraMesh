@@ -3,6 +3,12 @@
 
 #include <time.h>
 
+typedef enum {
+	ALIVE,
+	DEAD,
+	UNKNOWN
+} NodeStatus;
+
 typedef struct node_table_entry {
 	Address address;
 	char *name;
@@ -10,7 +16,8 @@ typedef struct node_table_entry {
 	float avg_snr;			// avg rssi coming from node to this node
 	int messages;			// total messages coming from node to this node
 	time_t last_connection; // last time received message from node
-	char reachable;	// 1 for can reach 0 for cant reach
+	NodeStatus status;	// 1 for can reach 0 for cant reach
+	DataEntry *ping_msg;
 
 	struct node_table_entry *next;
 } NodeEntry;

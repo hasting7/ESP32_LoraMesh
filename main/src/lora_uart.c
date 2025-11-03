@@ -310,7 +310,7 @@ static void rcv_handler_task(void *arg) {
                 if (!node) node = create_node_object(origin);
                 time(&node->last_connection);
                 update_metrics(node, rssi, snr);
-                node->reachable = 1;
+                node->status = ALIVE;
 
                 // step + 1 per your original behavior
                 DataEntry *entry = create_data_object(id, msg_type, data, from, dest, origin, step + 1, rssi, snr);
@@ -335,7 +335,7 @@ static void rcv_handler_task(void *arg) {
                 }  
 
                 // create ack if msg of type and at destination
-                if ((msg_type == NORMAL) && (dest == g_address.i_addr)) {
+                if (((msg_type == CRITICAL) || (msg_type == PING)) && (dest == g_address.i_addr)) {
                     char msg_id_buff[6];
                     // fix and make msg send id with it and return id
                     snprintf(msg_id_buff, 6, "%d", id);
@@ -393,4 +393,20 @@ void message_sending_task(void *args) {
     }
 
     vTaskDelete(NULL);
+}
+
+void node_status_task(void *args) {
+    TickType_t last = xTaskGetTickCount();
+
+    for (;;) {
+        NodeEntry *node = g_node_table;
+        while (node) {
+            if (difftime(time(NULL), node->last_connection) >= 60) {
+                node->reachable = 0;
+            }
+            node = node->next;
+        }
+
+        vTaskDelayUntil(&last, pdMS_TO_TICKS(60 * 1000));   // wait one minute
+    }
 }

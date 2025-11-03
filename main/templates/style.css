@@ -120,20 +120,6 @@ form input[type="submit"]:active { transform: translateY(1px); }
 .type-1  { color:#92400E; background:#FFFBEB; border:1px solid #FDE68A; }
 .type-2  { color:#1A7F37; background:#E8F5EC; border:1px solid #CDEFD7; }
 
-/* Row states: background only */
-.msg-table tr.this-node     { background: #eaf5ff; } /* soft blue */
-.msg-table tr.reachable     { background: #eefaf0; } /* soft green */
-.msg-table tr.non-reachable { background: #f6f7f9; } /* soft gray */
-
-/* Keep hover subtle and not overpowering the states */
-.msg-table tbody tr:hover { background: rgba(0,0,0,0.02); }
-
-/* Optional: preserve state color on hover */
-.msg-table tr.this-node:hover,
-.msg-table tr.reachable:hover,
-.msg-table tr.non-reachable:hover {
-  background-color: inherit;
-}
 /* Helpers */
 .faded { color: var(--muted); }
 
