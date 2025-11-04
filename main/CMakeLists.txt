@@ -1,5 +1,6 @@
 idf_component_register(
     SRCS
+        "src/hash_table.c"
         "src/node_globals.c"
         "src/node_table.c"
         "src/data_table.c"
