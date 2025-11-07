@@ -11,10 +11,13 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 
+#define TABLE_SIZE (100)
+
 static SemaphoreHandle_t g_dtb_mutex; 
 
 void msg_table_init(void) {
     g_dtb_mutex = xSemaphoreCreateMutex();
+    g_msg_table = create_hashtable(TABLE_SIZE);
 }
 
 DataEntry *create_data_object(int id, MessageType type, char *content, int src, int dst, int origin, int steps, int rssi, int snr)
@@ -58,18 +61,22 @@ DataEntry *create_data_object(int id, MessageType type, char *content, int src, 
         new_entry->stage = MSG_RELAYED;
     }
 
-    table_insert(new_entry);
+    printf("inserting into table: %s\n",new_entry->content);
+
+    xSemaphoreTake(g_dtb_mutex, portMAX_DELAY);
+
+    hash_insert(g_msg_table, new_entry->id, (void *) new_entry);
+
+    xSemaphoreGive(g_dtb_mutex);
+
+    printf("data added %s\n", new_entry->content ? new_entry->content : "(null)");
+    printf("load factor = %d/%d\n", g_msg_table->entries, g_msg_table->size);
 
     return new_entry;
 }
 
 DataEntry *get_msg_ptr(int id) {
-    DataEntry *walk = g_msg_table;
-    while (walk) {
-        if (walk->id == id) return walk;
-        walk = walk->next;
-    }
-    return NULL;
+    return hash_find(g_msg_table, id);
 }
 
 void free_data_object(DataEntry **ptr)
@@ -81,27 +88,6 @@ void free_data_object(DataEntry **ptr)
     free(root->content);
     free(root);
     *ptr = NULL;
-}
-
-void table_insert(DataEntry *data)
-{
-    if (!data) return;
-    printf("inserting into table: %s\n",data->content);
-
-    xSemaphoreTake(g_dtb_mutex, portMAX_DELAY);
-
-    DataEntry **pp = &g_msg_table;
-
-    while (*pp && (difftime(data->timestamp, (*pp)->timestamp) <= 0.0)) {
-        pp = &(*pp)->next;
-    }
-
-    data->next = *pp;
-    *pp = data;
-
-    xSemaphoreGive(g_dtb_mutex);
-
-    printf("data added %s\n", data->content ? data->content : "(null)");
 }
 
 int format_data_as_json(DataEntry *data, char *out, int buff_size) {

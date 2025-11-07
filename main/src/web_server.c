@@ -17,6 +17,16 @@
 #include "lora_uart.h"
 
 
+int cmp_dataentry_timestamp_asc(const void *a, const void *b) {
+    const DataEntry *da = *(DataEntry * const *)a;
+    const DataEntry *db = *(DataEntry * const *)b;
+
+    if (da->timestamp < db->timestamp) return -1;
+    if (da->timestamp > db->timestamp) return  1;
+    return 0;
+}
+
+
 static const char *TAG = "ap_http_hello";
 extern const uint8_t index_html_start[] asm("_binary_index_html_start");
 extern const uint8_t index_html_end[]   asm("_binary_index_html_end");
@@ -74,18 +84,23 @@ static esp_err_t api_get_msgs(httpd_req_t *req) {
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
     httpd_resp_sendstr_chunk(req, "[");
 
-    DataEntry *walk = g_msg_table;
-    char buffer[1024];
-    bool first = true;
-    for (; walk; walk = walk->next) {
+    DataEntry *entry;
+    void **messages = sort_hash_to_array(g_msg_table, cmp_dataentry_timestamp_asc);
+    if (messages) {
+        char buffer[1024];
+        bool first = true;
+        for (int i = 0; i < g_msg_table->entries; i++) {
+            entry = (DataEntry *) messages[i];
 
-        if (have_since_id && walk->id == since_id) break;
+            if (have_since_id && entry->id == since_id) break;
 
-        if (!first) httpd_resp_sendstr_chunk(req, ",");
-        first = false;
+            if (!first) httpd_resp_sendstr_chunk(req, ",");
+            first = false;
 
-        format_data_as_json(walk, buffer, sizeof buffer);
-        httpd_resp_sendstr_chunk(req, buffer);
+            format_data_as_json(entry, buffer, sizeof buffer);
+            httpd_resp_sendstr_chunk(req, buffer);
+        }
+        free(messages);
     }
     httpd_resp_sendstr_chunk(req, "]");
     return httpd_resp_send_chunk(req, NULL, 0);

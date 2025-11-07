@@ -217,6 +217,8 @@ LoraInstruction construct_command(Command cmd, const char *args[], int n) {
 
 
 int send_message_blocking(DataEntry *data, int to_address) {
+    //          using string              4bytes  4bytes 4bytes    1 byte     4 bytes (meta data size = 17)
+    // using uint16_t (two chars)         2bytes  2bytes 2bytes    1 byte     2 bytes (meta data size = 9) saving 8 bytes
     // Build message payload: "<content>,<origin>,<dest>,<steps>,<msg_type>,<id>"
     char cmd[512];
     int payload_len = snprintf(cmd, sizeof(cmd), "%s,%d,%d,%d,%d,%d",
@@ -402,7 +404,7 @@ void node_status_task(void *args) {
         NodeEntry *node = g_node_table;
         while (node) {
             if (difftime(time(NULL), node->last_connection) >= 60) {
-                node->reachable = 0;
+                node->status = ALIVE;
             }
             node = node->next;
         }

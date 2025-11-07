@@ -32,10 +32,10 @@ typedef struct data_entry_struct {
     int64_t timestamp;           // timestamp of arrival
     char *content;              // content of message
     struct data_entry_struct *next;
-    int src_node;               // node where message came from last
-    int dst_node;               // node where message is trying to be sent
-    int origin_node;            // node where message originated
-    int target_node;            // node where msg is going next
+    ID src_node;               // node where message came from last
+    ID dst_node;               // node where message is trying to be sent
+    ID origin_node;            // node where message originated
+    ID target_node;            // node where msg is going next
     int steps;                  // nodes visited
     int length;                 // length of message content   
     int rssi;                   // Received Signal Strength Indicator
@@ -44,7 +44,7 @@ typedef struct data_entry_struct {
     MessageType message_type;   // this is the type of message it is. broadcast, normal, critical, maintnace, etc
     MessageRouteStage stage;
 
-    uint16_t id;                // unique id of message
+    ID id;                // unique id of message
     int ack_status;              // if it is a message requiring ack, did it get one?
 
 } DataEntry;

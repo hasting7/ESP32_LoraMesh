@@ -1,11 +1,6 @@
 #ifndef _HASH_TABLE_H_
 #define _HASH_TABLE_H_
 
-HashTable *create_hashtable(size_t size);
-void delete_hashtable(HashTable **ptr);
-int hash_insert(HashTable *table, int key, void *value);
-void *hash_find(HashTable *table, int key);
-void *hash_remove(HashTable *table, int key);
 
 typedef struct entry_struct {
 	int key;
@@ -18,5 +13,13 @@ typedef struct hash_table_struct {
 	int entries;
 	Entry **table;
 } HashTable;
+
+
+HashTable *create_hashtable(size_t size);
+void delete_hashtable(HashTable **ptr);
+int hash_insert(HashTable *table, int key, void *value);
+void *hash_find(HashTable *table, int key);
+void *hash_remove(HashTable *table, int key);
+void** sort_hash_to_array(HashTable *table, int (*cmp)(const void *, const void *));
 
 #endif

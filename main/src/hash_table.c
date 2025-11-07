@@ -119,20 +119,19 @@ void *hash_remove(HashTable *table, int key) {
 
 void** sort_hash_to_array(HashTable *table, int (*cmp)(const void *, const void *)) {
 	if (!table) return NULL;
+	if (table->entries == 0) return NULL;
 
 	// create 1d array
 	void **entries = calloc(table->entries, sizeof(void *));
 
 	int c = 0;
-	for (int i = 0; i < table->entries; i++) {
+	for (int i = 0; i < table->size; i++) {
 		Entry *walk = table->table[i];
 		while (walk) {
-			printf("table[%d] = %d\n",walk->key, *((int *)walk->value));
 			entries[c++] = walk->value;
 			walk = walk->next;
 		}
 	}
-	printf("c = %d\n", c);
 
 	qsort(entries, table->entries, sizeof(void *), cmp);
 
