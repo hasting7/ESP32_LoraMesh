@@ -1,8 +1,7 @@
 #pragma once
 
 #include <stdint.h>
-
-struct HashTable;
+#include "hash_table.h"
 
 typedef uint16_t ID;
 
@@ -12,6 +11,6 @@ typedef struct {
 } Address;
 
 extern Address g_address;
-extern struct HashTable *g_msg_table;
+extern HashTable *g_msg_table;
 
 uint16_t rand_id(void);

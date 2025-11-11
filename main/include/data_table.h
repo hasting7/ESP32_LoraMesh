@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <time.h>
 
+#include "hash_table.h"
 #include "node_globals.h"
 
 typedef enum {
