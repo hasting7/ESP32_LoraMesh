@@ -1,15 +1,16 @@
+#include "data_table.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
-#include "data_table.h"
-#include "node_globals.h"
-#include "node_table.h"
-
-
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+
+#include "hash_table.h"
+#include "node_globals.h"
+#include "node_table.h"
 
 #define TABLE_SIZE (100)
 

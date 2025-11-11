@@ -1,14 +1,15 @@
 #include <stdio.h>
+#include <stdlib.h>
 
 #include "driver/uart.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
 #include "data_table.h"
-#include "node_globals.h"
-#include "mesh_config.h"
-#include "node_table.h"
 #include "lora_uart.h"
+#include "mesh_config.h"
+#include "node_globals.h"
+#include "node_table.h"
 #include "web_server.h"
 
 #define RESET (0)

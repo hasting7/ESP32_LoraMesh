@@ -1,13 +1,12 @@
-#include <stdlib.h>
-
-#include "data_table.h"
-#include "node_globals.h"
 #include "node_table.h"
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
 
-#include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 
+#include "data_table.h"
 
 NodeEntry *g_node_table = NULL;
 static SemaphoreHandle_t g_ntb_mutex; 
