@@ -331,10 +331,16 @@ static void rcv_handler_task(void *arg) {
                 time(&node->last_connection);
                 update_metrics(node, rssi, snr);
                 node->status = ALIVE;
+                node->misses = 0;
 
-
-                create_data_object(id, msg_type, data, from, dest, origin, step + 1, rssi, snr);
-
+                // check to see if id already exists.
+                // only create if NEW
+                DataEntry *existing = hash_find(g_msg_table, id);
+                if (existing) {
+                    printf("msg with id=%d already exists.\n\tExisting content = \"%s\"\n\tNew content = \"%s\"\n",id, existing->content, data);
+                } else {
+                    create_data_object(id, msg_type, data, from, dest, origin, step + 1, rssi, snr);
+                }
                 if (msg_type == ACK) {
                     int acked_msg_id;
                     int n = sscanf(data, "%d", &acked_msg_id);
@@ -418,18 +424,73 @@ void message_sending_task(void *args) {
     vTaskDelete(NULL);
 }
 
+void ping_suspect_node(void *args) {
+    NodeEntry *node = (NodeEntry *)args;
+    if (!node) { vTaskDelete(NULL); return; }
+
+    DataEntry *ping_msg = hash_find(g_msg_table, node->ping_id);
+    if (!ping_msg) { 
+        printf("no ping msg for node %d\n",node->address.i_addr);
+        vTaskDelete(NULL); return; 
+    }
+
+    ping_msg->ack_status = 0;
+
+    TickType_t delay_ticks = pdMS_TO_TICKS(1000); // 1s
+    bool success = false;
+
+    for (int i = 0; i < 4; i++) {
+        // send ping
+        queue_send(node->ping_id, node->address.i_addr);
+
+        vTaskDelay(delay_ticks);
+
+        if (delay_ticks <= (portMAX_DELAY / 2)) delay_ticks <<= 1;
+
+        if (ping_msg->ack_status) {
+            success = true;
+            break;
+        } else {
+            node->misses += 1;
+        }
+    }
+
+    node->status = success ? ALIVE : DEAD;
+    node->ping_task = NULL;
+
+    vTaskDelete(NULL);
+}
+
 void node_status_task(void *args) {
     TickType_t last = xTaskGetTickCount();
 
     for (;;) {
         NodeEntry *node = g_node_table;
         while (node) {
-            if (difftime(time(NULL), node->last_connection) >= 60) {
+            int delta = difftime(time(NULL), node->last_connection);
+            if (delta <= 60) {
+                // last connection was within the minute
                 node->status = ALIVE;
+                node->misses = 0;
+            } else if ((delta > 60) && (node->status == ALIVE)) {
+                printf("Node (%d) is suspected to be dead. pinging...\n",node->address.i_addr);
+                // it was alive but last connection was over a minute ago.
+                // mark as suspect then ping_suspect_node
+                node->status = UNKNOWN;
+                if (node->ping_task == NULL) {
+                    xTaskCreate(
+                        ping_suspect_node,
+                        "pingSuspect",
+                        2048,                // stack size
+                        (void*)node,         // pvParameters
+                        tskIDLE_PRIORITY+1,  // priority
+                        &node->ping_task     // save handle so we don’t double-create
+                    );
+                }
             }
             node = node->next;
         }
 
-        vTaskDelayUntil(&last, pdMS_TO_TICKS(60 * 1000));   // wait one minute
+        vTaskDelayUntil(&last, pdMS_TO_TICKS(15 * 1000));   // wait 15 seconcds
     }
 }

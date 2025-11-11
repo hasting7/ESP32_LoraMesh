@@ -23,5 +23,6 @@ int send_message_blocking(ID);
 MessageSendingStatus uart_send_and_block(LoraInstruction instruction, size_t);
 void queue_send(ID msg_id, int target);
 void message_sending_task(void *);
+void node_status_task(void *args);
 
 #endif // LORA_UART_H

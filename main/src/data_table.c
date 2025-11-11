@@ -51,7 +51,13 @@ ID create_data_object(int id, MessageType type, char *content, int src, int dst,
     new_entry->rssi = rssi;
     new_entry->snr = snr;
     new_entry->length = (int) len;
-    new_entry->id = (id == NO_ID) ? rand_id() : id;
+    if (id == NO_ID) {
+        do {
+            new_entry->id = rand_id();
+        } while (hash_find(g_msg_table, new_entry->id));
+    } else {
+        new_entry->id = id;
+    }
 
     if (g_address.i_addr == origin) {
         new_entry->stage = MSG_AT_SOURCE;

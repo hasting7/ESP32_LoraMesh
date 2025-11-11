@@ -26,6 +26,8 @@ NodeEntry *create_node_object(int address) {
     new_entry->avg_rssi = 0;
     new_entry->avg_snr = 0;
     new_entry->messages = 0;
+    new_entry->misses = 0;
+    new_entry->ping_task = NULL;
     new_entry->status = UNKNOWN;
     new_entry->address.i_addr = address;
     int l = snprintf(new_entry->address.s_addr, sizeof new_entry->address.s_addr, "%u", (unsigned)address);

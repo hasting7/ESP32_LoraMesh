@@ -43,6 +43,7 @@ void app_main(void)
     // create message sending task
 
     xTaskCreate(message_sending_task, "message sender", 4096, NULL, 5, NULL);
+    xTaskCreate(node_status_task, "node status checker", 4096, NULL, 5, NULL);
 
 
     // attempt to reach nodes
