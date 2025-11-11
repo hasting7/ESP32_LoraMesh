@@ -309,13 +309,14 @@ void uart_init(void) {
     ESP_ERROR_CHECK(uart_param_config(UART_PORT, &uart_config));
     ESP_ERROR_CHECK(uart_set_pin(UART_PORT, TX_PIN, RX_PIN, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE));
 
-    // pattern detection
-    // ESP_ERROR_CHECK(uart_enable_pattern_det_baud_intr(UART_PORT, '\n', 1, 9, 0, 0));
-    // ESP_ERROR_CHECK(uart_pattern_queue_reset(UART_PORT, 10));
     xTaskCreate(uart_reader_task, "uart_reader_task", 4096, NULL, 10, NULL);
     xTaskCreate(rcv_handler_task, "rcv_reader_task", 4096, NULL, 10, NULL);
 
     MessageQueue = xQueueCreate(16, sizeof(ID));
+}
+
+void handle_maintenance_msg(ID msg_id) {
+    DataEntry *respond_to_msg = hash_find(g_msg_table, msg_id);
 }
 
 static void rcv_handler_task(void *arg) {
@@ -336,12 +337,18 @@ static void rcv_handler_task(void *arg) {
                 // check to see if id already exists.
                 // only create if NEW
                 DataEntry *existing = hash_find(g_msg_table, id);
+                ID rcv_msg_id;
                 if (existing) {
                     printf("msg with id=%d already exists.\n\tExisting content = \"%s\"\n\tNew content = \"%s\"\n",id, existing->content, data);
+                    rcv_msg_id = existing->id;
                 } else {
-                    create_data_object(id, msg_type, data, from, dest, origin, step + 1, rssi, snr);
+                    rcv_msg_id = create_data_object(id, msg_type, data, from, dest, origin, step + 1, rssi, snr);
                 }
-                if (msg_type == ACK) {
+
+                if (msg_type == MAINTENANCE) {
+                    handle_maintenance_msg(rcv_msg_id);
+
+                } else if (msg_type == ACK) {
                     int acked_msg_id;
                     int n = sscanf(data, "%d", &acked_msg_id);
                     if (n == 0) {
@@ -468,11 +475,11 @@ void node_status_task(void *args) {
         NodeEntry *node = g_node_table;
         while (node) {
             int delta = difftime(time(NULL), node->last_connection);
-            if (delta <= 60) {
+            if (delta <= REQUEST_STATUS_TIME) {
                 // last connection was within the minute
                 node->status = ALIVE;
                 node->misses = 0;
-            } else if ((delta > 60) && (node->status == ALIVE)) {
+            } else if ((delta > REQUEST_STATUS_TIME) && (node->status == ALIVE)) {
                 printf("Node (%d) is suspected to be dead. pinging...\n",node->address.i_addr);
                 // it was alive but last connection was over a minute ago.
                 // mark as suspect then ping_suspect_node

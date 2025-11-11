@@ -45,4 +45,10 @@ void app_main(void)
 
     xTaskCreate(message_sending_task, "message sender", 4096, NULL, 5, NULL);
     xTaskCreate(node_status_task, "node status checker", 4096, NULL, 5, NULL);
+
+    // find neighbors
+
+    ID neighbor_msg_id = create_data_object(NO_ID, MAINTENANCE, "n:s", g_address.i_addr, 0, g_address.i_addr, 0, 0, 0);
+    queue_send(neighbor_msg_id, 0);
+
 }
