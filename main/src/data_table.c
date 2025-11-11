@@ -48,7 +48,6 @@ ID create_data_object(int id, MessageType type, char *content, int src, int dst,
     new_entry->transfer_status = NO_STATUS;
     new_entry->ack_status = 0;
     time(&new_entry->timestamp);
-    new_entry->next = NULL;
     new_entry->rssi = rssi;
     new_entry->snr = snr;
     new_entry->length = (int) len;
