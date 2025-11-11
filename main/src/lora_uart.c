@@ -110,151 +110,6 @@ static bool parse_rcv_line(const char *line,
     return true;
 }
 
-/*
-// +RCV=<from>,<len><sep><DATA>,<origin>,<dest>,<step>,<msg_type>,<id>,<rssi>,<snr>
-// or (embedded metadata)
-// +RCV=<from>,<len><sep><DATA having: "<content>,<origin>,<dest>,<step>,<msg_type>,<id>">,<rssi>,<snr>
-static bool parse_rcv_line(const char *line,
-                           int *from, int *len, char *data, size_t data_cap,
-                           int *origin, int *dest, int *step, int *msg_type, int *id,
-                           int *rssi, int *snr)
-{
-    if (!line || !from || !len || !data || data_cap == 0 ||
-        !origin || !dest || !step || !rssi || !snr || !id || !msg_type) {
-        return false;
-    }
-
-    if (strncmp(line, "+RCV=", 5) != 0) return false;
-
-    const char *p = line + 5;
-    char *end = NULL;
-
-    // <from>
-    long f = strtol(p, &end, 10);
-    if (end == p || *end != ',') return false;
-    p = end + 1;
-
-    // <len>
-    long l = strtol(p, &end, 10);
-    if (end == p) return false;
-    if (*end != ',' && *end != ':') return false; // allow ',' or ':'
-    p = end + 1;
-
-    if (l < 0) return false;
-
-    // Ensure at least <len> bytes for DATA (as visible in the string)
-    size_t remain = strlen(p);
-    if ((size_t)l > remain) return false;
-
-    // Copy exactly len bytes of DATA (may contain commas)
-    int data_len = (int)l;
-    size_t copy = (size_t)data_len < (data_cap - 1) ? (size_t)data_len : (data_cap - 1);
-    memcpy(data, p, copy);
-    data[copy] = '\0';
-    p += data_len;
-
-    // After DATA, expect a comma, then the trailing ints
-    if (*p != ',') return false;
-    p++;
-
-    // Parse up to 7 ints in the tail
-    // (origin,dest,step,msg_type,id,rssi,snr)  OR  (rssi,snr)
-    long tail[7];
-    int tcount = 0;
-    for (; tcount < 7; tcount++) {
-        tail[tcount] = strtol(p, &end, 10);
-        if (end == p) break;                  // no number
-        if (*end == ',') p = end + 1;
-        else { p = end; tcount++; break; }    // last token
-    }
-
-    if (tcount == 7) {
-        // Case A: all metadata outside DATA
-        *origin   = (ID)tail[0];
-        *dest     = (ID)tail[1];
-        uint8_t pack = (uint8_t) (tail[2]);
-        *step = (int) (pack >> 4) & 0x7;
-        *msg_type = (int) pack & 0xF;
-        *id       = (ID)tail[4];
-        *rssi     = (int)tail[5];
-        *snr      = (int)tail[6];
-    }
-    else if (tcount == 2) {
-        // Case B: only rssi,snr outside; parse last 5 tokens from DATA
-        *rssi = (int)tail[0];
-        *snr  = (int)tail[1];
-
-        // DATA format (suffix): "<content>,<origin>,<dest>,<step>,<msg_type>,<id>"
-        // Find the last 5 commas (id, msg_type, step, dest, origin)
-        int commas_found = 0;
-        int pos[5] = {-1,-1,-1,-1,-1};
-        int dlen = (int)strlen(data);
-        for (int i = dlen - 1; i >= 0 && commas_found < 5; --i) {
-            if (data[i] == ',') pos[commas_found++] = i;
-        }
-        if (commas_found < 5) return false; // not enough fields at end
-
-        // Positions (from rightmost):
-        // pos[0] = comma before id
-        // pos[1] = comma before msg_type
-        // pos[2] = comma before step
-        // pos[3] = comma before dest
-        // pos[4] = comma before origin
-        //
-        // So slices are:
-        // id        : data[pos[0]+1 .. end]
-        // msg_type  : data[pos[1]+1 .. pos[0]-1]
-        // step      : data[pos[2]+1 .. pos[1]-1]
-        // dest      : data[pos[3]+1 .. pos[2]-1]
-        // origin    : data[pos[4]+1 .. pos[3]-1]
-        //
-        // Everything before pos[4] is the <content>. We'll null-terminate in place.
-
-        char *endptr;
-
-        // id
-        long v_id = strtol(&data[pos[0] + 1], &endptr, 10);
-        if (*endptr != '\0') return false;
-        data[pos[0]] = '\0';
-
-        // msg_type
-        long v_msg_type = strtol(&data[pos[1] + 1], &endptr, 10);
-        if (*endptr != '\0') return false;
-        data[pos[1]] = '\0';
-
-        // step
-        long v_step = strtol(&data[pos[2] + 1], &endptr, 10);
-        if (*endptr != '\0') return false;
-        data[pos[2]] = '\0';
-
-        // dest
-        long v_dest = strtol(&data[pos[3] + 1], &endptr, 10);
-        if (*endptr != '\0') return false;
-        data[pos[3]] = '\0';
-
-        // origin
-        long v_origin = strtol(&data[pos[4] + 1], &endptr, 10);
-        if (*endptr != '\0') return false;
-
-        // Now leave only <content> in data
-        data[pos[4]] = '\0';
-
-        *origin   = (int)v_origin;
-        *dest     = (int)v_dest;
-        *step     = (int)v_step;
-        *msg_type = (int)v_msg_type;
-        *id       = (int)v_id;
-    }
-    else {
-        return false; // unsupported tail shape
-    }
-
-    *from = (int)f;
-    *len  = (int)l;
-    return true;
-}
-*/
-
 LoraInstruction construct_command(Command cmd, const char *args[], int n) {
     char cmd_buffer[256] = "AT+";
     int len = 3;
@@ -303,7 +158,13 @@ LoraInstruction construct_command(Command cmd, const char *args[], int n) {
 }
 
 
-int send_message_blocking(DataEntry *data, int to_address) {
+int send_message_blocking(ID msg_id) {
+
+    DataEntry *data = hash_find(g_msg_table, msg_id);
+    ID to_address = data->target_node;
+    if (!data) {
+        printf("msg with ID: %d DNE\n", msg_id);
+    }
 
     //          using string              4bytes  4bytes 1bytes    1 byte     4 bytes (meta data size = 14)
     // using uint16_t (two chars)         2bytes  2bytes       1byte        2 bytes (meta data size = 7) saving 7 bytes
@@ -423,10 +284,11 @@ MessageSendingStatus uart_send_and_block(LoraInstruction cmd, size_t length) {
 }
 
 
-void queue_send(DataEntry *data, int target) {
+void queue_send(ID msg_id, int target) {
+    DataEntry *data = hash_find(g_msg_table, msg_id);
     data->target_node = target;
     data->transfer_status = QUEUED;
-    xQueueSend(MessageQueue, &data, pdMS_TO_TICKS(50));
+    xQueueSend(MessageQueue, &msg_id, pdMS_TO_TICKS(50));
 }
 
 
@@ -453,7 +315,7 @@ void uart_init(void) {
     xTaskCreate(uart_reader_task, "uart_reader_task", 4096, NULL, 10, NULL);
     xTaskCreate(rcv_handler_task, "rcv_reader_task", 4096, NULL, 10, NULL);
 
-    MessageQueue = xQueueCreate(16, sizeof(DataEntry *));
+    MessageQueue = xQueueCreate(16, sizeof(ID));
 }
 
 static void rcv_handler_task(void *arg) {
@@ -471,8 +333,7 @@ static void rcv_handler_task(void *arg) {
                 node->status = ALIVE;
 
 
-                // step + 1 per your original behavior
-                DataEntry *entry = create_data_object(id, msg_type, data, from, dest, origin, step + 1, rssi, snr);
+                create_data_object(id, msg_type, data, from, dest, origin, step + 1, rssi, snr);
 
                 if (msg_type == ACK) {
                     int acked_msg_id;
@@ -480,13 +341,13 @@ static void rcv_handler_task(void *arg) {
                     if (n == 0) {
                         printf("Error parsing ack msg id\n");
                     } else {
-                        DataEntry *acked_msg = get_msg_ptr(acked_msg_id);
+                        DataEntry *acked_msg = hash_find(g_msg_table, acked_msg_id);
                         // mark it as acked because it is
                         acked_msg->ack_status = 1;
 
                         if (dest != g_address.i_addr) {
                         // msg went from src -> dst. but now we wanna send to src
-                        queue_send(entry, acked_msg->src_node);
+                        queue_send(acked_msg_id, acked_msg->src_node);
                         }
                     }
                     // if msg is an ACK
@@ -498,8 +359,8 @@ static void rcv_handler_task(void *arg) {
                     char msg_id_buff[6];
                     // fix and make msg send id with it and return id
                     snprintf(msg_id_buff, 6, "%d", id);
-                    DataEntry *ack = create_data_object(NO_ID, ACK, msg_id_buff, g_address.i_addr, origin, g_address.i_addr, 0, 0, 0);
-                    queue_send(ack, from);
+                    ID ack_id = create_data_object(NO_ID, ACK, msg_id_buff, g_address.i_addr, origin, g_address.i_addr, 0, 0, 0);
+                    queue_send(ack_id, from);
                 }
             } else {
                 printf("UART PARSE FAIL: '%s'\n", line);
@@ -543,11 +404,11 @@ static void uart_reader_task(void *arg) {
 }
 
 void message_sending_task(void *args) {
-    DataEntry *data;
+    ID msg_id;
     for (;;) {
-        if (xQueueReceive(MessageQueue, &data, portMAX_DELAY)) {
+        if (xQueueReceive(MessageQueue, &msg_id, portMAX_DELAY)) {
             // change this later
-            send_message_blocking(data, data->dst_node);
+            send_message_blocking(msg_id);
 
             uint32_t jitter_ms = 10 + (esp_random() % 40);
             vTaskDelay(pdMS_TO_TICKS(jitter_ms));

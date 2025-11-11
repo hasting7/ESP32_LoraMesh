@@ -21,8 +21,8 @@ int cmp_dataentry_timestamp_asc(const void *a, const void *b) {
     const DataEntry *da = *(DataEntry * const *)a;
     const DataEntry *db = *(DataEntry * const *)b;
 
-    if (da->timestamp < db->timestamp) return -1;
-    if (da->timestamp > db->timestamp) return  1;
+    if (da->timestamp < db->timestamp) return   1;
+    if (da->timestamp > db->timestamp) return  -1;
     return 0;
 }
 
@@ -158,7 +158,6 @@ static esp_err_t send_post_handler(httpd_req_t *req)
     buf[read] = '\0';
     printf("buffer: %s\n",buf);
 
-    // 2) Parse message=... (application/x-www-form-urlencoded)
     char message[250];
     int target;
     sscanf(buf, "target=%d&message=%249s", &target, message);
@@ -169,7 +168,7 @@ static esp_err_t send_post_handler(httpd_req_t *req)
     }
     free(buf);
 
-    DataEntry *entry = create_data_object(
+    ID entry_id = create_data_object(
         NO_ID,
         (0 == target) ? BROADCAST : NORMAL,
         message, 
@@ -178,18 +177,14 @@ static esp_err_t send_post_handler(httpd_req_t *req)
         g_address.i_addr, 
         0, 0, 0
     );
-    queue_send(entry, target);
+    queue_send(entry_id, target);
 
 
-    // 3) Handle it (enqueue / store / broadcast)
     ESP_LOGI(TAG, "POST /send message: \"%s\"", message);
-    // e.g., push_message(from=local_addr, msg=message);
-    // add_row_to_table(...);
 
-    // 4) Redirect back to "/"
-    httpd_resp_set_status(req, "303 See Other"); // avoids form re-submit on reload
+    httpd_resp_set_status(req, "303 See Other");
     httpd_resp_set_hdr(req, "Location", "/");
-    httpd_resp_sendstr(req, ""); // body optional
+    httpd_resp_sendstr(req, "");
     return ESP_OK;
 }
 

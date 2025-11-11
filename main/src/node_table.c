@@ -33,10 +33,10 @@ NodeEntry *create_node_object(int address) {
     new_entry->name = NULL;
     // new nodes should inherit last connection time from parents
     time(&new_entry->last_connection);
-    new_entry->ping_msg = NULL;
+    new_entry->ping_id = 0;
     // only add ping msg if not urself
     if (g_address.i_addr != address) {
-        new_entry->ping_msg = create_data_object(NO_ID, PING, "ping", g_address.i_addr, address, g_address.i_addr, 0, 0, 0);
+        new_entry->ping_id = create_data_object(NO_ID, PING, "ping", g_address.i_addr, address, g_address.i_addr, 0, 0, 0);
     }
 
     xSemaphoreTake(g_ntb_mutex, portMAX_DELAY);

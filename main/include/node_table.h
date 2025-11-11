@@ -17,7 +17,7 @@ typedef struct node_table_entry {
 	int messages;			// total messages coming from node to this node
 	time_t last_connection; // last time received message from node
 	NodeStatus status;	// 1 for can reach 0 for cant reach
-	DataEntry *ping_msg;
+	ID ping_id;
 
 	struct node_table_entry *next;
 } NodeEntry;

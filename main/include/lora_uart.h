@@ -13,14 +13,15 @@ typedef enum {
 } Command;
 
 typedef char * LoraInstruction;
+typedef uint16_t ID;
 
 #define MAX_PAYLOAD (240)
 
 void uart_init(void);
 LoraInstruction construct_command(Command, const char *[], int);
-int send_message_blocking(DataEntry *, int);
+int send_message_blocking(ID);
 MessageSendingStatus uart_send_and_block(LoraInstruction instruction, size_t);
-void queue_send(DataEntry *data, int target);
+void queue_send(ID msg_id, int target);
 void message_sending_task(void *);
 
 #endif // LORA_UART_H

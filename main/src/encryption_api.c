@@ -31,7 +31,6 @@ static void rng(uint8_t *out, size_t n){
 
 
 
-
 // Simple 24-byte nonce: 8-byte random prefix + 16-byte counter (little-endian)
 typedef struct { uint8_t prefix[8]; uint64_t ctr_lo, ctr_hi; } nonce24_t;
 static void nonce_init(nonce24_t *n){ rng(n->prefix,8); n->ctr_lo = 0; n->ctr_hi = 0; }

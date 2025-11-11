@@ -50,12 +50,10 @@ typedef struct data_entry_struct {
 
 } DataEntry;
 
-DataEntry *create_data_object(int id, MessageType type, char *content, int src, int dst, int origin, int steps, int rssi, int snr);
+ID create_data_object(int id, MessageType type, char *content, int src, int dst, int origin, int steps, int rssi, int snr);
 void free_data_object(DataEntry **ptr);
-void table_insert(DataEntry *data);
 void msg_table_init(void);
 int format_data_as_json(DataEntry *, char *, int);
-DataEntry *get_msg_ptr(int id);
 
 #endif // DATA_TABLE_H
 

@@ -20,19 +20,19 @@ void msg_table_init(void) {
     g_msg_table = create_hashtable(TABLE_SIZE);
 }
 
-DataEntry *create_data_object(int id, MessageType type, char *content, int src, int dst, int origin, int steps, int rssi, int snr)
+ID create_data_object(int id, MessageType type, char *content, int src, int dst, int origin, int steps, int rssi, int snr)
 {
     printf("creating object for: %s\n",content);
     DataEntry *new_entry = malloc(sizeof(DataEntry));
     if (!new_entry) {
-        return NULL;
+        return 0;
     }
 
     size_t len = strlen(content);
     char *content_ptr = calloc(len + 1, sizeof(char));
     if (!content_ptr) {
         free(new_entry);
-        return NULL;
+        return 0;
     }
     memcpy(content_ptr, content, len);
     content_ptr[len] = '\0';
@@ -72,11 +72,7 @@ DataEntry *create_data_object(int id, MessageType type, char *content, int src, 
     printf("data added %s\n", new_entry->content ? new_entry->content : "(null)");
     printf("load factor = %d/%d\n", g_msg_table->entries, g_msg_table->size);
 
-    return new_entry;
-}
-
-DataEntry *get_msg_ptr(int id) {
-    return hash_find(g_msg_table, id);
+    return new_entry->id;
 }
 
 void free_data_object(DataEntry **ptr)
@@ -92,6 +88,7 @@ void free_data_object(DataEntry **ptr)
 
 int format_data_as_json(DataEntry *data, char *out, int buff_size) {
     // content, source, destination, origin, steps, timestamp, id, length, rssi, snr, stage
+
     char time_buff[32];
     struct tm tm;
     gmtime_r(&data->timestamp, &tm);
