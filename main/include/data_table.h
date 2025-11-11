@@ -2,6 +2,7 @@
 #define DATA_TABLE_H
 
 #include <time.h>
+typedef uint16_t ID;
 
 typedef enum {
     MSG_AT_SOURCE,      // originated here
@@ -10,7 +11,7 @@ typedef enum {
 } MessageRouteStage;
 
 typedef enum { 
-    BROADCAST,
+    BROADCAST = 1,
     NORMAL,
     ACK,
     CRITICAL,

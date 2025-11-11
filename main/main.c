@@ -26,7 +26,7 @@ void app_main(void)
     LoraInstruction instr;
     if (RESET) {
         instr = construct_command(FACTORY, NULL, 0);
-        uart_send_and_block(instr);
+        uart_send_and_block(instr, 0);
         free(instr);
     }
 
@@ -35,7 +35,7 @@ void app_main(void)
     // free(instr);
 
     instr = construct_command(ADDRESS, (const char *[]) {g_address.s_addr}, 1);
-    uart_send_and_block(instr);
+    uart_send_and_block(instr, 0);
     free(instr);
 
     create_node_object(g_address.i_addr);

@@ -1,5 +1,7 @@
 idf_component_register(
     SRCS
+        "src/encryption_api.c"
+        "src/monocypher.c"
         "src/hash_table.c"
         "src/node_globals.c"
         "src/node_table.c"

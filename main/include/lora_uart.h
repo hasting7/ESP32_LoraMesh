@@ -19,7 +19,7 @@ typedef char * LoraInstruction;
 void uart_init(void);
 LoraInstruction construct_command(Command, const char *[], int);
 int send_message_blocking(DataEntry *, int);
-MessageSendingStatus uart_send_and_block(LoraInstruction instruction);
+MessageSendingStatus uart_send_and_block(LoraInstruction instruction, size_t);
 void queue_send(DataEntry *data, int target);
 void message_sending_task(void *);
 

@@ -26,6 +26,91 @@ QueueHandle_t q_rcv;
 static void uart_reader_task(void *arg);
 static void rcv_handler_task(void *arg);
 
+static bool parse_rcv_line(const char *line,
+                           ID *from, int *len, char *data, size_t data_cap,
+                           ID *origin, ID *dest, int *step, int *msg_type, ID *id,
+                           int *rssi, int *snr)
+{
+    if (!line || !from || !len || !data || data_cap == 0 ||
+        !origin || !dest || !step || !msg_type || !id || !rssi || !snr) {
+        return false;
+    }
+
+    // Prefix
+    if (strncmp(line, "+RCV=", 5) != 0) return false;
+    const char *p = line + 5;
+    char *end = NULL;
+
+    // <from>
+    long f = strtol(p, &end, 10);
+    if (end == p || *end != ',') return false;
+    p = end + 1;
+
+    // <len>
+    long l = strtol(p, &end, 10);
+    if (end == p || *end != ',') return false;
+    if (l < 0) return false;
+    p = end + 1;
+
+
+    int data_len = (int)l;
+    size_t to_copy = (data_cap > 0 && (size_t)data_len >= data_cap) ? (data_cap - 1) : (size_t)data_len;
+    if (data_cap == 0) return false;
+    memcpy(data, p, to_copy);
+    data[to_copy] = '\0';          // safe sentinel for any incidental string use
+    p += data_len;                 // advance past DATA in the input string
+
+    // Next must be comma before RSSI/SNR
+    if (*p != ',') return false;
+    p++;
+
+    // <rssi> (integer)
+    long rssi_l = strtol(p, &end, 10);
+    if (end == p || *end != ',') return false;
+    p = end + 1;
+
+    // <snr> (often float; parse as double then cast to int field you requested)
+    double snr_d = strtod(p, &end);
+    if (end == p || *end != '\0') return false;
+
+    // // Need at least 7 bytes: 2(origin) + 2(dest) + 1(step+type) + 2(id)
+    // if (data_len < 7) return false;
+
+    const uint8_t *bytes = (const uint8_t *)data;
+    size_t idx = (size_t)data_len;
+
+    uint8_t id_hi = bytes[--idx];
+    uint8_t id_lo = bytes[--idx];
+    idx -= 1; // ','
+    *id = (ID)(((uint16_t)id_hi << 8) | id_lo);
+
+    uint8_t packed = bytes[--idx];
+    idx -= 1; // ','
+    *step     = (int)((packed >> 4) & 0x7);
+    *msg_type = (int)(packed & 0xF);
+
+    uint8_t dest_hi = bytes[--idx];
+    uint8_t dest_lo = bytes[--idx];
+    idx -=1; // ','
+    *dest = (ID)(((uint16_t)dest_hi << 8) | dest_lo);
+
+    uint8_t orig_hi = bytes[--idx];
+    uint8_t orig_lo = bytes[--idx];
+    idx -= 1;
+    *origin = (ID)(((uint16_t)orig_hi << 8) | orig_lo);
+
+    // Outputs
+    *from = (ID)f;
+    *len  = (int)l;
+    *rssi = (int)rssi_l;
+    *snr  = (int)(snr_d);
+    data[idx] = '\0';
+
+
+    return true;
+}
+
+/*
 // +RCV=<from>,<len><sep><DATA>,<origin>,<dest>,<step>,<msg_type>,<id>,<rssi>,<snr>
 // or (embedded metadata)
 // +RCV=<from>,<len><sep><DATA having: "<content>,<origin>,<dest>,<step>,<msg_type>,<id>">,<rssi>,<snr>
@@ -85,11 +170,12 @@ static bool parse_rcv_line(const char *line,
 
     if (tcount == 7) {
         // Case A: all metadata outside DATA
-        *origin   = (int)tail[0];
-        *dest     = (int)tail[1];
-        *step     = (int)tail[2];
-        *msg_type = (int)tail[3];
-        *id       = (int)tail[4];
+        *origin   = (ID)tail[0];
+        *dest     = (ID)tail[1];
+        uint8_t pack = (uint8_t) (tail[2]);
+        *step = (int) (pack >> 4) & 0x7;
+        *msg_type = (int) pack & 0xF;
+        *id       = (ID)tail[4];
         *rssi     = (int)tail[5];
         *snr      = (int)tail[6];
     }
@@ -167,6 +253,7 @@ static bool parse_rcv_line(const char *line,
     *len  = (int)l;
     return true;
 }
+*/
 
 LoraInstruction construct_command(Command cmd, const char *args[], int n) {
     char cmd_buffer[256] = "AT+";
@@ -217,37 +304,106 @@ LoraInstruction construct_command(Command cmd, const char *args[], int n) {
 
 
 int send_message_blocking(DataEntry *data, int to_address) {
-    //          using string              4bytes  4bytes 4bytes    1 byte     4 bytes (meta data size = 17)
-    // using uint16_t (two chars)         2bytes  2bytes 2bytes    1 byte     2 bytes (meta data size = 9) saving 8 bytes
+
+    //          using string              4bytes  4bytes 1bytes    1 byte     4 bytes (meta data size = 14)
+    // using uint16_t (two chars)         2bytes  2bytes       1byte        2 bytes (meta data size = 7) saving 7 bytes
     // Build message payload: "<content>,<origin>,<dest>,<steps>,<msg_type>,<id>"
-    char cmd[512];
-    int payload_len = snprintf(cmd, sizeof(cmd), "%s,%d,%d,%d,%d,%d",
-                               data->content, data->origin_node, data->dst_node, data->steps,data->message_type,data->id);
-    if (payload_len < 0) return -1;
-    if (payload_len >= (int)sizeof(cmd)) payload_len = sizeof(cmd) - 1;
+    // char cmd[512];
+    uint8_t cmd[512];
+    int cmd_len = 0;
+
+    // add in message first
+    for (char *c = data->content; *c ; c++) {
+        cmd[cmd_len++] = *c;
+    }
+    cmd[cmd_len++] = ',';
+
+    // add in origin ID
+
+    // convert origin to an array of uint8_t and add byte at a time
+    uint8_t *origin = (uint8_t *) &data->origin_node;
+    cmd[cmd_len++] = origin[0];
+    cmd[cmd_len++] = origin[1];
+
+    cmd[cmd_len++] = ',';
+    // add in destination ID
+
+    uint8_t *dest = (uint8_t *) &data->dst_node;
+    cmd[cmd_len++] = dest[0];
+    cmd[cmd_len++] = dest[1];
+
+    cmd[cmd_len++] = ',';
+    // merge msg type and steps into one byte
+    uint8_t steps = (data->steps) > 7 ? 7 : data->steps; // clamp to 3 bits max
+    // message type should be less that 15
+
+    // upper 4 bits for steps lower 4 for type
+    uint8_t single_byte_data = ((steps & 0x7) << 4) | (data->message_type & 0xF);
+    cmd[cmd_len++] = single_byte_data;
+
+
+    cmd[cmd_len++] = ',';
+    // add in id
+
+    uint8_t *this_id = (uint8_t *) &data->id;
+    cmd[cmd_len++] = this_id[0];
+    cmd[cmd_len++] = this_id[1];
+
+    cmd[cmd_len] = '\0';
+
+    printf("msg content: ");
+    for (int i = 0 ; i < cmd_len ; i++) {
+        printf("%c",cmd[i]);
+    }
+    printf("\n");
+
+    // int payload_len = snprintf(cmd, sizeof(cmd), "%s,%d,%d,%d,%d,%d",
+    //                            data->content, data->origin_node, data->dst_node, data->steps,data->message_type,data->id);
+    // if (payload_len < 0) return -1;
+    // if (payload_len >= (int)sizeof(cmd)) payload_len = sizeof(cmd) - 1;
 
     char to_address_s[12];
     char len_s[12];
     snprintf(to_address_s, sizeof(to_address_s), "%d", to_address);
-    snprintf(len_s, sizeof(len_s), "%d", payload_len);
+    snprintf(len_s, sizeof(len_s), "%d", cmd_len);
 
-    LoraInstruction instruction =
-        construct_command(SEND, (const char *[]) {to_address_s, len_s, cmd}, 3);
+    char final_cmd_buffer[512] = "AT+SEND=";
+    int final_len = 8;
 
-    if (!instruction) return -1;
+    for (char *c = to_address_s; *c; c++) {
+        final_cmd_buffer[final_len++] = *c;
+    }
+    final_cmd_buffer[final_len++] = ',';
 
-    printf("Sending: %s\n", instruction);
-    int resp = uart_send_and_block(instruction);
+    for (char *c = len_s; *c; c++) {
+        final_cmd_buffer[final_len++] = *c;
+    }
+    final_cmd_buffer[final_len++] = ',';
+    for (int i = 0 ; i < cmd_len ; i++) {
+        final_cmd_buffer[final_len++] = cmd[i];
+    }
+    final_cmd_buffer[final_len++] = '\r';
+    final_cmd_buffer[final_len++] = '\n';
+
+    printf("SENDING: ");
+    for (int i = 0 ; i < final_len ; i++) {
+        printf("%c",final_cmd_buffer[i]);
+    }
+    printf("\n");
+
+    int resp = uart_send_and_block((LoraInstruction) final_cmd_buffer, final_len);
 
     printf("Response code: %d\n", resp);
     data->transfer_status = resp;
 
-    free(instruction);
     return resp;
 }
 
-MessageSendingStatus uart_send_and_block(LoraInstruction cmd) {
-    uart_write_bytes(UART_PORT, cmd, strlen(cmd));
+MessageSendingStatus uart_send_and_block(LoraInstruction cmd, size_t length) {
+    if (length == 0) {
+        length = strlen(cmd);
+    }
+    uart_write_bytes(UART_PORT, cmd, length);
 
     char line[256];
     TickType_t deadline = xTaskGetTickCount() + pdMS_TO_TICKS(2000);
@@ -304,15 +460,16 @@ static void rcv_handler_task(void *arg) {
     char line[256];
     for (;;) {
         if (xQueueReceive(q_rcv, line, portMAX_DELAY) == pdTRUE) {
-            int from,len,origin,dest,step,msg_type,rssi,snr, id;
+            int len,step,msg_type,rssi,snr;
+            ID from, origin, dest, id;
             char data[256];
-            if (parse_rcv_line(line, &from, &len, data, sizeof(data),
-                               &origin, &dest, &step, &msg_type, &id, &rssi, &snr)) {
+            if (parse_rcv_line(line, &from, &len, data, sizeof(data), &origin, &dest, &step, &msg_type, &id, &rssi, &snr)) {
                 NodeEntry *node = get_node_ptr(origin);
                 if (!node) node = create_node_object(origin);
                 time(&node->last_connection);
                 update_metrics(node, rssi, snr);
                 node->status = ALIVE;
+
 
                 // step + 1 per your original behavior
                 DataEntry *entry = create_data_object(id, msg_type, data, from, dest, origin, step + 1, rssi, snr);
@@ -363,9 +520,12 @@ static void uart_reader_task(void *arg) {
 
         if (ch == '\r') { saw_cr = true; continue; }
         if (saw_cr && ch == '\n') {
+            for (int i = 0; i < len; i++) {
+                printf("%c",line[i]);
+            }
+            printf("\n");
             line[len] = '\0';
 
-            // Demux once here:
             if (strncmp(line, "+RCV=", 5) == 0) {
                 xQueueSend(q_rcv, line, 0);
             } else {
