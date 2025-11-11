@@ -1,19 +1,22 @@
 #ifndef LORA_UART_H
 #define LORA_UART_H
 
+#include <stddef.h>
+
+#include "data_table.h"
+
 typedef enum {
-	SEND,
-	ADDRESS,
-	RESET,
-	PARAMETER,
-	NETWORKID,
+        SEND,
+        ADDRESS,
+        RESET,
+        PARAMETER,
+        NETWORKID,
 	BAND,
 	FACTORY,
 	CRFOP
 } Command;
 
 typedef char * LoraInstruction;
-typedef uint16_t ID;
 
 #define MAX_PAYLOAD (240)
 

@@ -1,11 +1,11 @@
-#include "data_table.h"
 #include "node_globals.h"
-#include "hash_table.h"
+
+#include <stdint.h>
 
 #include "esp_random.h"
 
 Address g_address = {0};
-HashTable *g_msg_table = NULL;
+struct HashTable *g_msg_table = NULL;
 
 uint16_t rand_id(void) {
     const uint32_t m = 9000; // (10000 - 1000) no leading 0s

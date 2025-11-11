@@ -1,20 +1,23 @@
+#include "web_server.h"
+
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
 #include "esp_event.h"
+#include "esp_http_server.h"
 #include "esp_log.h"
 #include "esp_netif.h"
 #include "esp_wifi.h"
-#include "esp_http_server.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "nvs_flash.h"
 
 #include "data_table.h"
-#include "node_globals.h"
-#include "node_table.h"
-#include "mesh_config.h"
-#include "web_server.h"
 #include "lora_uart.h"
+#include "mesh_config.h"
+#include "node_table.h"
 
 
 int cmp_dataentry_timestamp_asc(const void *a, const void *b) {

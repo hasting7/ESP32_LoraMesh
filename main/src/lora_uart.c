@@ -1,21 +1,21 @@
-#include <stdio.h>
-#include <string.h>
-#include <stdbool.h>
-#include <stdlib.h>
-#include <ctype.h>
-
-#include "driver/uart.h"
-#include "driver/gpio.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "freertos/queue.h"
-#include "esp_random.h"
-
-#include "data_table.h"
-#include "node_globals.h"
-#include "mesh_config.h"
-#include "node_table.h"
 #include "lora_uart.h"
+
+#include <ctype.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "driver/gpio.h"
+#include "driver/uart.h"
+#include "esp_random.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/queue.h"
+#include "freertos/task.h"
+
+#include "mesh_config.h"
+#include "node_globals.h"
+#include "node_table.h"
 
 
 static QueueHandle_t MessageQueue;
