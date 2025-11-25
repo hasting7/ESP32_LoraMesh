@@ -28,7 +28,7 @@ static void rcv_handler_task(void *arg);
 
 static bool parse_rcv_line(const char *line,
                            ID *from, int *len, char *data, size_t data_cap,
-                           ID *origin, ID *dest, int *step, int *msg_type, ID *id,
+                           ID *origin, ID *dest, int *step, int *msg_type, ID *id, ID *ack_for,
                            int *rssi, int *snr)
 {
     if (!line || !from || !len || !data || data_cap == 0 ||
@@ -78,6 +78,11 @@ static bool parse_rcv_line(const char *line,
 
     const uint8_t *bytes = (const uint8_t *)data;
     size_t idx = (size_t)data_len;
+
+    uint8_t ack_hi = bytes[--idx];
+    uint8_t ack_lo = bytes[--idx];
+    idx -= 1; // ','
+    *ack_for = (ID)(((uint16_t)ack_hi << 8) | ack_lo);
 
     uint8_t id_hi = bytes[--idx];
     uint8_t id_lo = bytes[--idx];
@@ -168,7 +173,7 @@ int send_message_blocking(ID msg_id) {
 
     //          using string              4bytes  4bytes 1bytes    1 byte     4 bytes (meta data size = 14)
     // using uint16_t (two chars)         2bytes  2bytes       1byte        2 bytes (meta data size = 7) saving 7 bytes
-    // Build message payload: "<content>,<origin>,<dest>,<steps>,<msg_type>,<id>"
+    // Build message payload: "<content>,<origin>,<dest>,<steps>,<msg_type>,<id>,<ack_for_id>"
     // char cmd[512];
     uint8_t cmd[512];
     int cmd_len = 0;
@@ -209,6 +214,12 @@ int send_message_blocking(ID msg_id) {
     uint8_t *this_id = (uint8_t *) &data->id;
     cmd[cmd_len++] = this_id[0];
     cmd[cmd_len++] = this_id[1];
+    cmd[cmd_len++] = ',';
+
+    // add ack_for_id
+    uint8_t *ack_id = (uint8_t *) &data->ack_for;
+    cmd[cmd_len++] = ack_id[0];
+    cmd[cmd_len++] = ack_id[1];
 
     cmd[cmd_len] = '\0';
 
@@ -317,6 +328,39 @@ void uart_init(void) {
 
 void handle_maintenance_msg(ID msg_id) {
     DataEntry *respond_to_msg = hash_find(g_msg_table, msg_id);
+    printf("MAINTENANCE msg handling for ID=%d : \"%s\"\n", respond_to_msg->id, respond_to_msg->content);
+    // make sure msg is either broadcasted, or meant for this node
+    // also check to make sure message has not already been received ******* DO THIS LATER
+
+    if ((respond_to_msg->dst_node != 0) && (respond_to_msg->dst_node != g_address.i_addr)) {
+        printf("msg %d not for this node\n",respond_to_msg->id);
+        return;
+    }
+
+    // buffer for message to send back
+    char buffer[240];
+    int len = 1;
+
+    // branch based on what kinda maintenace
+    if (strncmp(respond_to_msg->content, "discovery", 9)) {
+        // this is asking about all the nodes on the network
+        // respond back with node_id,...,node_id
+        NodeEntry *node = g_node_table;
+        uint8_t *node_addr_arr;
+        uint8_t node_count = 0;
+        while (node) {
+            node_addr_arr = (uint8_t *) &node->address.s_addr;
+            buffer[len++] = node_addr_arr[0];
+            buffer[len++] = node_addr_arr[1];
+            node_count++;
+            node = node->next;
+        }
+        buffer[0] = node_count;
+        buffer[len] = '\0';
+    }
+
+    ID response_msg = create_data_object(NO_ID, ACK, buffer, g_address.i_addr, respond_to_msg->origin_node, g_address.i_addr, 0, 0, 0, msg_id);
+    queue_send(response_msg, respond_to_msg->origin_node);
 }
 
 static void rcv_handler_task(void *arg) {
@@ -324,44 +368,53 @@ static void rcv_handler_task(void *arg) {
     for (;;) {
         if (xQueueReceive(q_rcv, line, portMAX_DELAY) == pdTRUE) {
             int len,step,msg_type,rssi,snr;
-            ID from, origin, dest, id;
+            ID from, origin, dest, id, ack_for;
             char data[256];
-            if (parse_rcv_line(line, &from, &len, data, sizeof(data), &origin, &dest, &step, &msg_type, &id, &rssi, &snr)) {
-                NodeEntry *node = get_node_ptr(origin);
-                if (!node) node = create_node_object(origin);
-                time(&node->last_connection);
-                update_metrics(node, rssi, snr);
-                node->status = ALIVE;
-                node->misses = 0;
+            if (parse_rcv_line(line, &from, &len, data, sizeof(data), &origin, &dest, &step, &msg_type, &id, &ack_for, &rssi, &snr)) {
+
+                // i should be marking the origin node and the src node as active
+                NodeEntry *origin_node = get_node_ptr(origin);
+                if (!origin_node) origin_node = create_node_object(origin);
+
+                NodeEntry *src_node = get_node_ptr(from);
+                if (!src_node) src_node = create_node_object(from);
+
+                time(&origin_node->last_connection);
+                time(&src_node->last_connection);
+                update_metrics(src_node, rssi, snr);
+                origin_node->status = ALIVE;
+                src_node->status = ALIVE;
+                // misses not really used rn
+                origin_node->misses = 0;
+                src_node->misses = 0;
+
+
 
                 // check to see if id already exists.
                 // only create if NEW
+                // handle this diffrently lowkey, if you re-receive a message do somthing else
                 DataEntry *existing = hash_find(g_msg_table, id);
                 ID rcv_msg_id;
                 if (existing) {
                     printf("msg with id=%d already exists.\n\tExisting content = \"%s\"\n\tNew content = \"%s\"\n",id, existing->content, data);
                     rcv_msg_id = existing->id;
                 } else {
-                    rcv_msg_id = create_data_object(id, msg_type, data, from, dest, origin, step + 1, rssi, snr);
+                    rcv_msg_id = create_data_object(id, msg_type, data, from, dest, origin, step + 1, rssi, snr, NO_ID);
                 }
 
                 if (msg_type == MAINTENANCE) {
                     handle_maintenance_msg(rcv_msg_id);
 
-                } else if (msg_type == ACK) {
-                    int acked_msg_id;
-                    int n = sscanf(data, "%d", &acked_msg_id);
-                    if (n == 0) {
-                        printf("Error parsing ack msg id\n");
-                    } else {
-                        DataEntry *acked_msg = hash_find(g_msg_table, acked_msg_id);
-                        // mark it as acked because it is
-                        acked_msg->ack_status = 1;
+                }
 
-                        if (dest != g_address.i_addr) {
+                if (msg_type == ACK) {
+                    DataEntry *acked_msg = hash_find(g_msg_table, ack_for);
+                    // mark it as acked because it is
+                    acked_msg->ack_status = 1;
+
+                    if (dest != g_address.i_addr) {
                         // msg went from src -> dst. but now we wanna send to src
-                        queue_send(acked_msg_id, acked_msg->src_node);
-                        }
+                        queue_send(id, acked_msg->src_node);
                     }
                     // if msg is an ACK
                     // the goal is to send it along the path it came
@@ -369,10 +422,10 @@ static void rcv_handler_task(void *arg) {
 
                 // create ack if msg of type and at destination
                 if (((msg_type == CRITICAL) || (msg_type == PING)) && (dest == g_address.i_addr)) {
-                    char msg_id_buff[6];
+                    char msg_id_buff[32];
                     // fix and make msg send id with it and return id
-                    snprintf(msg_id_buff, 6, "%d", id);
-                    ID ack_id = create_data_object(NO_ID, ACK, msg_id_buff, g_address.i_addr, origin, g_address.i_addr, 0, 0, 0);
+                    snprintf(msg_id_buff, 32, "ack msg for %d", id);
+                    ID ack_id = create_data_object(NO_ID, ACK, msg_id_buff , g_address.i_addr, origin, g_address.i_addr, 0, 0, 0, id);
                     queue_send(ack_id, from);
                 }
             } else {
@@ -443,16 +496,16 @@ void ping_suspect_node(void *args) {
 
     ping_msg->ack_status = 0;
 
-    TickType_t delay_ticks = pdMS_TO_TICKS(1000); // 1s
+    int delay = 1;
     bool success = false;
 
     for (int i = 0; i < 4; i++) {
         // send ping
         queue_send(node->ping_id, node->address.i_addr);
 
-        vTaskDelay(delay_ticks);
+        vTaskDelay(pdMS_TO_TICKS(delay * 1000));
 
-        if (delay_ticks <= (portMAX_DELAY / 2)) delay_ticks <<= 1;
+        delay <<= 1;
 
         if (ping_msg->ack_status) {
             success = true;

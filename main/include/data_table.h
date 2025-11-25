@@ -38,6 +38,7 @@ typedef struct data_entry_struct {
     ID dst_node;                 // node where message is trying to be sent
     ID origin_node;              // node where message originated
     ID target_node;              // node where msg is going next
+
     int steps;                   // nodes visited
     int length;                  // length of message content
     int rssi;                    // Received Signal Strength Indicator
@@ -48,10 +49,11 @@ typedef struct data_entry_struct {
 
     ID id;                // unique id of message
     int ack_status;       // if it is a message requiring ack, did it get one?
+    ID ack_for;           // if 0 then msg is not an ack, if non-zero then msg is meant to ack an existing node (msg_id = ack_for)
 
 } DataEntry;
 
-ID create_data_object(int id, MessageType type, char *content, int src, int dst, int origin, int steps, int rssi, int snr);
+ID create_data_object(int id, MessageType type, char *content, int src, int dst, int origin, int steps, int rssi, int snr, ID ack_for);
 void free_data_object(DataEntry **ptr);
 void msg_table_init(void);
 int format_data_as_json(DataEntry *, char *, int);

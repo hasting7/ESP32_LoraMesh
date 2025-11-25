@@ -48,7 +48,7 @@ void app_main(void)
 
     // find neighbors
 
-    ID neighbor_msg_id = create_data_object(NO_ID, MAINTENANCE, "n:s", g_address.i_addr, 0, g_address.i_addr, 0, 0, 0);
+    ID neighbor_msg_id = create_data_object(NO_ID, MAINTENANCE, "discovery", g_address.i_addr, 0, g_address.i_addr, 0, 0, 0, NO_ID);
     queue_send(neighbor_msg_id, 0);
 
 }

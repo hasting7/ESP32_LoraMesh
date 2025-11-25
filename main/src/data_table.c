@@ -21,9 +21,8 @@ void msg_table_init(void) {
     g_msg_table = create_hashtable(TABLE_SIZE);
 }
 
-ID create_data_object(int id, MessageType type, char *content, int src, int dst, int origin, int steps, int rssi, int snr)
+ID create_data_object(int id, MessageType type, char *content, int src, int dst, int origin, int steps, int rssi, int snr, ID ack_for)
 {
-    printf("creating object for: %s\n",content);
     DataEntry *new_entry = malloc(sizeof(DataEntry));
     if (!new_entry) {
         return 0;
@@ -44,6 +43,7 @@ ID create_data_object(int id, MessageType type, char *content, int src, int dst,
     new_entry->origin_node = origin;
     new_entry->steps = steps;
     new_entry->target_node = 0;
+    new_entry->ack_for = ack_for;
     new_entry->message_type = type;
     new_entry->transfer_status = NO_STATUS;
     new_entry->ack_status = 0;
@@ -67,7 +67,6 @@ ID create_data_object(int id, MessageType type, char *content, int src, int dst,
         new_entry->stage = MSG_RELAYED;
     }
 
-    printf("inserting into table: %s\n",new_entry->content);
 
     xSemaphoreTake(g_dtb_mutex, portMAX_DELAY);
 

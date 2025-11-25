@@ -58,7 +58,7 @@ static esp_err_t api_get_msgs(httpd_req_t *req) {
     //
     // address -> only returns messages between (this and address) ignore relay
     // modes (conversational, all, relay, broadcasts)
-    printf("GET /api/messages\n");
+    // printf("GET /api/messages\n");
     uint64_t since_id = 0;
     bool have_since_id = false;
 
@@ -110,7 +110,7 @@ static esp_err_t api_get_msgs(httpd_req_t *req) {
 }
 
 static esp_err_t api_get_nodes(httpd_req_t *req) {
-    printf("GET /api/nodes\n");
+    // printf("GET /api/nodes\n");
     httpd_resp_set_type(req, "application/json; charset=utf-8");
     httpd_resp_set_hdr(req, "Cache-Control", "no-store");
     httpd_resp_sendstr_chunk(req, "[");
@@ -178,7 +178,7 @@ static esp_err_t send_post_handler(httpd_req_t *req)
         g_address.i_addr, 
         target, 
         g_address.i_addr, 
-        0, 0, 0
+        0, 0, 0, NO_ID
     );
     queue_send(entry_id, target);
 
