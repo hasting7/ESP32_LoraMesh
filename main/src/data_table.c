@@ -21,6 +21,10 @@ void msg_table_init(void) {
     g_msg_table = create_hashtable(TABLE_SIZE);
 }
 
+ID create_command(char *content) {
+    return create_data_object(NO_ID, COMMAND, content, g_address.i_addr, g_address.i_addr, g_address.i_addr, 0, 0, 0, NO_ID);
+}
+
 ID create_data_object(int id, MessageType type, char *content, int src, int dst, int origin, int steps, int rssi, int snr, ID ack_for)
 {
     DataEntry *new_entry = malloc(sizeof(DataEntry));
@@ -101,9 +105,9 @@ int format_data_as_json(DataEntry *data, char *out, int buff_size) {
 
     int n = sprintf(
         out,
-        "{\"content\" : \"%s\", \"source\" : %d, \"destination\" : %d, \"origin\" : %d, \"steps\" : %d, \"timestamp\" : \"%s\", \"id\" : %d, \"length\" : %d, \"rssi\" : %d, \"snr\" : %d, \"stage\" : %d, \"transfer_status\" : %d, \"ack_status\" : %d, \"message_type\" : %d}",
+        "{\"content\" : \"%s\", \"source\" : %d, \"destination\" : %d, \"origin\" : %d, \"steps\" : %d, \"timestamp\" : \"%s\", \"id\" : %d, \"length\" : %d, \"rssi\" : %d, \"snr\" : %d, \"stage\" : %d, \"transfer_status\" : %d, \"ack_status\" : %d, \"message_type\" : %d, \"ack_for\" : %d}",
         data->content, data->src_node, data->dst_node, data->origin_node, data->steps,
-        time_buff, data->id, data->length, data->rssi, data->snr, data->stage, data->transfer_status, data->ack_status, data->message_type
+        time_buff, data->id, data->length, data->rssi, data->snr, data->stage, data->transfer_status, data->ack_status, data->message_type, data->ack_for
     );
     out[buff_size - 1] = '\0';
     return n;

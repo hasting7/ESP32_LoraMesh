@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
 #include "esp_event.h"
 #include "esp_http_server.h"
@@ -13,6 +14,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "nvs_flash.h"
+
 
 #include "data_table.h"
 #include "lora_uart.h"
@@ -27,6 +29,44 @@ int cmp_dataentry_timestamp_asc(const void *a, const void *b) {
     if (da->timestamp < db->timestamp) return   1;
     if (da->timestamp > db->timestamp) return  -1;
     return 0;
+}
+
+static int hexval(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+void url_decode_inplace(char *s) {
+    char *src = s;
+    char *dst = s;
+
+    while (*src) {
+        if (*src == '+') {
+            // plus → space
+            *dst++ = ' ';
+            src++;
+        } else if (*src == '%' &&
+                   isxdigit((unsigned char)src[1]) &&
+                   isxdigit((unsigned char)src[2])) {
+            // %HH → byte
+            int hi = hexval(src[1]);
+            int lo = hexval(src[2]);
+            if (hi >= 0 && lo >= 0) {
+                *dst++ = (char)((hi << 4) | lo);
+                src += 3; // skip %HH
+            } else {
+                // malformed, just copy '%' literally
+                *dst++ = *src++;
+            }
+        } else {
+            // normal character, copy as-is
+            *dst++ = *src++;
+        }
+    }
+
+    *dst = '\0';
 }
 
 
@@ -171,15 +211,29 @@ static esp_err_t send_post_handler(httpd_req_t *req)
     }
     free(buf);
 
-    ID entry_id = create_data_object(
-        NO_ID,
-        (0 == target) ? BROADCAST : NORMAL,
-        message, 
-        g_address.i_addr, 
-        target, 
-        g_address.i_addr, 
-        0, 0, 0, NO_ID
-    );
+    ID entry_id;
+
+    if (strncmp(message, "AT",2) == 0) {
+        // i need to convert all symbols to 
+        // its a command message
+        printf("message before char update: %s\n",message);
+        url_decode_inplace(message);
+        printf("message after char update: %s\n",message);
+
+        entry_id = create_command(message);
+    }
+    else {
+        entry_id = create_data_object(
+            NO_ID,
+            (0 == target) ? BROADCAST : NORMAL,
+            message, 
+            g_address.i_addr, 
+            target, 
+            g_address.i_addr, 
+            0, 0, 0, NO_ID
+        );
+    }
+
     queue_send(entry_id, target);
 
 

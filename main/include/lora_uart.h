@@ -16,15 +16,14 @@ typedef enum {
 	CRFOP
 } Command;
 
-typedef char * LoraInstruction;
 
 #define MAX_PAYLOAD (240)
 #define REQUEST_STATUS_TIME (120)
 
 void uart_init(void);
-LoraInstruction construct_command(Command, const char *[], int);
+// LoraInstruction construct_command(Command, const char *[], int);
 int send_message_blocking(ID);
-MessageSendingStatus uart_send_and_block(LoraInstruction instruction, size_t);
+MessageSendingStatus uart_send_and_block(char *, size_t, char *, size_t);
 void queue_send(ID msg_id, int target);
 void message_sending_task(void *);
 void node_status_task(void *args);

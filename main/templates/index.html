@@ -31,6 +31,7 @@
           <th>ID</th>
           <th>Send Status</th>
           <th>Ack Status</th>
+          <th>Ack For</th>
           <th>Origin</th>
           <th>Source</th>
           <th>Destination</th>
@@ -122,7 +123,7 @@
         }
         tr.className = `type-${Number(m.stage)||0}`;
         tr.innerHTML =
-          `<td>${esc(m.id)}</td><td>${status}</td><td>${m.ack_status}</td><td>${esc(m.origin)}</td><td>${esc(m.source)}</td><td>${esc(m.destination)}</td>`+
+          `<td>${esc(m.id)}</td><td>${status}</td><td>${m.ack_status}</td><td>${m.ack_for}</td><td>${esc(m.origin)}</td><td>${esc(m.source)}</td><td>${esc(m.destination)}</td>`+
           `<td>${esc(m.rssi)}</td><td>${esc(m.snr)}</td><td>${esc(m.content??'')}</td>`;
         tbody.insertBefore(tr, tbody.firstChild);
       }

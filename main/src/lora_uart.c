@@ -115,63 +115,15 @@ static bool parse_rcv_line(const char *line,
     return true;
 }
 
-LoraInstruction construct_command(Command cmd, const char *args[], int n) {
-    char cmd_buffer[256] = "AT+";
-    int len = 3;
 
-    int expect_args = -1;
-    const char *name = NULL;
-
-    if (cmd == SEND)        { expect_args = 3; name = "SEND"; }
-    else if (cmd == ADDRESS){ expect_args = 1; name = "ADDRESS"; }
-    else if (cmd == RESET)  { expect_args = 0; name = "RESET"; }
-    else if (cmd == PARAMETER){ expect_args = 4; name = "PARAMETER"; }
-    else if (cmd == BAND)   { expect_args = 2; name = "BAND"; }
-    else if (cmd == NETWORKID){ expect_args = 1; name = "NETWORKID"; }
-    else if (cmd == FACTORY){ expect_args = 0; name = "FACTORY"; }
-    else if (cmd == CRFOP)  { expect_args = 1; name = "CRFOP"; }
-
-    if (expect_args < 0 || n != expect_args) {
-        printf("%s cmd should have %d args not %d\n", name ? name : "(unknown)", expect_args, n);
-        return NULL;
-    }
-
-    // Append name
-    for (int i = 0; name[i] != '\0' && len < (int)sizeof(cmd_buffer) - 1; i++) {
-        cmd_buffer[len++] = name[i];
-    }
-
-    if (expect_args != 0) {
-        if (len < (int)sizeof(cmd_buffer) - 1) cmd_buffer[len++] = '=';
-        for (int i = 0; i < n; i++) {
-            for (int l = 0; args[i][l] != '\0' && len < (int)sizeof(cmd_buffer) - 1; l++) {
-                cmd_buffer[len++] = args[i][l];
-            }
-            if (len < (int)sizeof(cmd_buffer) - 1) cmd_buffer[len++] = ',';
-        }
-        if (cmd_buffer[len-1] == ',') len--; // remove last comma
-    }
-
-    if (len < (int)sizeof(cmd_buffer) - 1) cmd_buffer[len++] = '\r';
-    if (len < (int)sizeof(cmd_buffer) - 1) cmd_buffer[len++] = '\n';
-    cmd_buffer[len++] = '\0';
-
-    char *ret = (char*)malloc(len);
-    if (!ret) return NULL;
-    memcpy(ret, cmd_buffer, len);
-    return ret;
-}
-
-
-int send_message_blocking(ID msg_id) {
-
+int format_message_command(ID msg_id, char *command_buffer, size_t *length) {
     DataEntry *data = hash_find(g_msg_table, msg_id);
     ID to_address = data->target_node;
     if (!data) {
         printf("msg with ID: %d DNE\n", msg_id);
+        return 0;
     }
 
-    //          using string              4bytes  4bytes 1bytes    1 byte     4 bytes (meta data size = 14)
     // using uint16_t (two chars)         2bytes  2bytes       1byte        2 bytes (meta data size = 7) saving 7 bytes
     // Build message payload: "<content>,<origin>,<dest>,<steps>,<msg_type>,<id>,<ack_for_id>"
     // char cmd[512];
@@ -229,11 +181,6 @@ int send_message_blocking(ID msg_id) {
     }
     printf("\n");
 
-    // int payload_len = snprintf(cmd, sizeof(cmd), "%s,%d,%d,%d,%d,%d",
-    //                            data->content, data->origin_node, data->dst_node, data->steps,data->message_type,data->id);
-    // if (payload_len < 0) return -1;
-    // if (payload_len >= (int)sizeof(cmd)) payload_len = sizeof(cmd) - 1;
-
     char to_address_s[12];
     char len_s[12];
     snprintf(to_address_s, sizeof(to_address_s), "%d", to_address);
@@ -256,40 +203,167 @@ int send_message_blocking(ID msg_id) {
     }
     final_cmd_buffer[final_len++] = '\r';
     final_cmd_buffer[final_len++] = '\n';
+    final_cmd_buffer[final_len + 1] = '\0';
 
-    printf("SENDING: ");
-    for (int i = 0 ; i < final_len ; i++) {
-        printf("%c",final_cmd_buffer[i]);
+    *length = final_len;
+    for (int i = 0; i < final_len; i++) {
+        command_buffer[i] = final_cmd_buffer[i];
     }
-    printf("\n");
 
-    int resp = uart_send_and_block((LoraInstruction) final_cmd_buffer, final_len);
+    return 1;
+}
 
-    printf("Response code: %d\n", resp);
+
+int send_message_blocking(ID msg_id) {
+    printf("send_message_blocking(id = %d)\n",msg_id);
+
+    DataEntry *data = hash_find(g_msg_table, msg_id);
+
+    char command_buffer[256];
+    size_t length;
+
+    if (data->message_type == COMMAND) {
+        // send message as just content
+        printf("command: %s (%d)\n",data->content, data->length);
+        length = strlcpy(command_buffer, data->content, sizeof(command_buffer));
+        if (length >= sizeof(command_buffer) - 2) {
+            // Not enough room for "\r\n" + '\0'
+            printf("COMMAND too long for command_buffer\n");
+            return -1;
+        }
+        printf("command: %s (%d)\n",command_buffer, length);
+        command_buffer[length++] = '\r';
+        command_buffer[length++] = '\n';
+        command_buffer[length] = '\0';
+        printf("Command string construction: %s (len = %d)\n", command_buffer, length);
+    } else {
+        // send formatted message
+        if (!format_message_command(msg_id, command_buffer, &length)) {
+            printf("issue formatting send message string\n");
+            return 0;
+        }
+        printf("resp from format msg command: len = %d msg = %s\n", length, command_buffer);
+    }
+
+    printf("SENDING:\n");
+    for (int i = 0 ; i < length ; i++) {
+        printf("MSG char (%d): 0x%02X '%c'\n",
+            i,
+            command_buffer[i],
+            (command_buffer[i] >= 32 && command_buffer[i] <= 126) ? command_buffer[i] : '.');
+    }
+    printf(" \n");
+
+    size_t max_response_length = 40;
+    char response_buffer[max_response_length];
+
+    int resp = uart_send_and_block(command_buffer, length, response_buffer, max_response_length);
+
+    if (data->message_type == COMMAND) {
+        // if msg was a command create a ack msg with the result of the command (and mark as acked ig)
+        ID addr = g_address.i_addr;
+        create_data_object(NO_ID, COMMAND, response_buffer, -1, addr, -1, 0, 0, 0, msg_id);
+        data->ack_status = 1;
+    }
+
+    printf("Response = \"%s\"\nResponse code: %d\n", response_buffer, resp);
     data->transfer_status = resp;
 
     return resp;
 }
 
-MessageSendingStatus uart_send_and_block(LoraInstruction cmd, size_t length) {
+
+MessageSendingStatus uart_send_and_block(char *cmd, size_t length, char *resp_buffer, size_t max_resp_length) {
     if (length == 0) {
         length = strlen(cmd);
     }
+
+    // 1) Flush stale responses
+    char junk[256];
+    while (xQueueReceive(q_resp, junk, 0) == pdTRUE) {
+        printf("Flushing stale resp: \"%s\"\n", junk);
+    }
+
+    // 2) Send command
     uart_write_bytes(UART_PORT, cmd, length);
 
+    // 3) Collect lines
     char line[256];
-    TickType_t deadline = xTaskGetTickCount() + pdMS_TO_TICKS(2000);
+    size_t resp_len = 0;
+    bool got_any = false;
+    MessageSendingStatus status = OK;
+
+    const int overall_timeout_ms  = 2000;
+    const int interline_timeout_ms = 100;
+
+    TickType_t start    = xTaskGetTickCount();
+    TickType_t deadline = start + pdMS_TO_TICKS(overall_timeout_ms);
+    TickType_t last_line_time = 0;
 
     for (;;) {
         TickType_t now = xTaskGetTickCount();
-        if (now >= deadline) return NO_STATUS;
 
-        if (xQueueReceive(q_resp, line, deadline - now) == pdTRUE) {
-            printf("Response: %s\n",line);
-            if (strncmp(line, "+OK", 3) == 0) return SENT;
+        // hard overall timeout
+        if (now >= deadline) {
+            if (resp_len > 0) resp_buffer[resp_len] = '\0';
+            return got_any ? status : NO_STATUS;
+        }
+
+        if (got_any && (now - last_line_time > pdMS_TO_TICKS(interline_timeout_ms))) {
+            if (resp_len > 0) resp_buffer[resp_len] = '\0';
+            return status;
+        }
+
+        TickType_t wait = pdMS_TO_TICKS(interline_timeout_ms);
+        if (now + wait > deadline) {
+            wait = deadline - now;
+        }
+
+        if (xQueueReceive(q_resp, line, wait) != pdTRUE) {
+            continue;
+        }
+
+        now = xTaskGetTickCount();
+        last_line_time = now;
+        got_any = true;
+
+        printf("Response line: \"%s\"\n", line);
+
+        // -------- status parsing (both 998 + 993) --------
+
+        // 998-style: +ERR=code
+        if (!strncmp(line, "+ERR", 4)) {
             int err;
-            if (sscanf(line, "+ERR=%d", &err) == 1) return err;
-            // Ignore unrelated noise; keep waiting until +OK/+ERR or timeout
+            if (sscanf(line, "+ERR=%d", &err) == 1) {
+                status = err;
+            } else {
+                status = ERR;
+            }
+        }
+
+        else if (!strncmp(line, "+OK", 3) || !strncmp(line, "OK",2)) {
+            status = OK;
+        }
+
+        // 993-style: AT_FOO_ERROR
+        else if (!strncmp(line, "AT_", 3) && strstr(line, "_ERROR") != NULL) {
+            status = ERR;
+        }
+
+        // -------- accumulate all lines into resp_buffer --------
+
+        size_t line_len = strlen(line);
+        const char *sep = "<br>";
+        size_t sep_len = got_any && resp_len > 0 ? strlen(sep) : 0;
+
+        if (resp_len + sep_len + line_len + 1 < max_resp_length) {
+            if (sep_len > 0) {
+                memcpy(resp_buffer + resp_len, sep, sep_len);
+                resp_len += sep_len;
+            }
+            memcpy(resp_buffer + resp_len, line, line_len);
+            resp_len += line_len;
+            resp_buffer[resp_len] = '\0';
         }
     }
 }
@@ -307,9 +381,9 @@ void uart_init(void) {
     q_rcv  = xQueueCreate(16, 256);
     q_resp = xQueueCreate(16, 256);
 
-
+    int baud = 9600;
     uart_config_t uart_config = {
-        .baud_rate = BAUD,
+        .baud_rate = baud,
         .data_bits = UART_DATA_8_BITS,
         .parity = UART_PARITY_DISABLE,
         .stop_bits = UART_STOP_BITS_1,
@@ -435,7 +509,9 @@ static void rcv_handler_task(void *arg) {
     }
 }
 
+
 static void uart_reader_task(void *arg) {
+    printf("UART READER INIT\n");
     char line[256];
     int len = 0;
     bool saw_cr = false;
@@ -445,8 +521,20 @@ static void uart_reader_task(void *arg) {
         int n = uart_read_bytes(UART_PORT, &ch, 1, pdMS_TO_TICKS(50));
         if (n <= 0) continue;
 
+        if (len == 0 && ((ch == '\r') || (ch == '\n')) ) {
+            printf("Ditching char either '\\r' or '\\n'\n");
+            // this is an attempt to remove extra \n or \r being sent after a response is created
+            // if the \r\n already terminated the message any tailing \r or \n will be forgotten bc new msg should start with '+'
+            continue;
+        }
+
+        // printf("RX char: 0x%02X '%c'\n",
+        //        ch,
+        //        (ch >= 32 && ch <= 126) ? ch : '.');
+
         if (ch == '\r') { saw_cr = true; continue; }
         if (saw_cr && ch == '\n') {
+            printf("UART read: ");
             for (int i = 0; i < len; i++) {
                 printf("%c",line[i]);
             }

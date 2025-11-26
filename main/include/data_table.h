@@ -13,19 +13,20 @@ typedef enum {
     MSG_AT_DESTINATION  // this node is the destination
 } MessageRouteStage;
 
-typedef enum {
+typedef enum { // 15 max
     BROADCAST = 1,
     NORMAL,
     ACK,
     CRITICAL,
     MAINTENANCE,
     PING,
+    COMMAND
 } MessageType;
 
 typedef enum {
     NO_STATUS = -2,
     QUEUED = -1,
-    SENT = 0,
+    OK = 0,
     ERR,
 } MessageSendingStatus;
 
@@ -53,6 +54,7 @@ typedef struct data_entry_struct {
 
 } DataEntry;
 
+ID create_command(char *content);
 ID create_data_object(int id, MessageType type, char *content, int src, int dst, int origin, int steps, int rssi, int snr, ID ack_for);
 void free_data_object(DataEntry **ptr);
 void msg_table_init(void);

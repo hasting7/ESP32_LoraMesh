@@ -20,24 +20,23 @@ void app_main(void)
     msg_table_init();
     node_table_init();
     wifi_start_softap(&g_address);
-    printf("Address of node is: %d, %s\n", (int) g_address.i_addr, g_address.s_addr);
+    printf("Address of node is: %d\n", g_address.i_addr);
     uart_init();
     printf("UART DRIVER INIT\n");
 
-    LoraInstruction instr;
-    if (RESET) {
-        instr = construct_command(FACTORY, NULL, 0);
-        uart_send_and_block(instr, 0);
-        free(instr);
-    }
+    printf("ATTEMPTING TO ESTABLISH BAUD = 9600\n");
+    ID set_baud_cmd = create_command("AT+IPR=9600");
+    queue_send(set_baud_cmd, NO_ID);
 
-    // instr = construct_command(CRFOP, (const char *[]) { "16" }, 1);
-    // uart_send_and_block(instr);
-    // free(instr);
+    printf("SETTING NODE ADDRESS\n");
 
-    instr = construct_command(ADDRESS, (const char *[]) {g_address.s_addr}, 1);
-    uart_send_and_block(instr, 0);
-    free(instr);
+    char update_addr_buffer[32];
+    sprintf(update_addr_buffer, "AT+ADDRESS=%d", g_address.i_addr);
+    update_addr_buffer[31] = '\0';
+
+    ID addr_set_cmd = create_command(update_addr_buffer);
+    queue_send(addr_set_cmd, NO_ID);
+
 
     create_node_object(g_address.i_addr);
 
@@ -48,7 +47,7 @@ void app_main(void)
 
     // find neighbors
 
-    ID neighbor_msg_id = create_data_object(NO_ID, MAINTENANCE, "discovery", g_address.i_addr, 0, g_address.i_addr, 0, 0, 0, NO_ID);
-    queue_send(neighbor_msg_id, 0);
+    // ID neighbor_msg_id = create_data_object(NO_ID, MAINTENANCE, "discovery", g_address.i_addr, 0, g_address.i_addr, 0, 0, 0, NO_ID);
+    // queue_send(neighbor_msg_id, 0);
 
 }
