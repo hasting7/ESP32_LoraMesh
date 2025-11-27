@@ -7,16 +7,20 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "esp_log.h"
 
 #include "hash_table.h"
 #include "node_globals.h"
 #include "node_table.h"
 
+
 #define TABLE_SIZE (100)
 
+static const char *TAG = "MSG TABLE";
 static SemaphoreHandle_t g_dtb_mutex; 
 
 void msg_table_init(void) {
+    ESP_LOGI(TAG, "MSG TABLE INIT");
     g_dtb_mutex = xSemaphoreCreateMutex();
     g_msg_table = create_hashtable(TABLE_SIZE);
 }
@@ -78,8 +82,8 @@ ID create_data_object(int id, MessageType type, char *content, int src, int dst,
 
     xSemaphoreGive(g_dtb_mutex);
 
-    printf("data added %s\n", new_entry->content ? new_entry->content : "(null)");
-    printf("load factor = %d/%d\n", g_msg_table->entries, g_msg_table->size);
+
+    ESP_LOGI(TAG, "Table entry for \"%s\" created ID = %d", new_entry->content, new_entry->id);
 
     return new_entry->id;
 }

@@ -11,6 +11,9 @@
 #include "node_globals.h"
 #include "node_table.h"
 #include "web_server.h"
+#include "esp_log.h"
+
+static const char *TAG = "Main";
 
 #define RESET (0)
 
@@ -19,16 +22,16 @@ void app_main(void)
 {
     msg_table_init();
     node_table_init();
-    wifi_start_softap(&g_address);
-    printf("Address of node is: %d\n", g_address.i_addr);
     uart_init();
-    printf("UART DRIVER INIT\n");
 
-    printf("ATTEMPTING TO ESTABLISH BAUD = 9600\n");
+    wifi_start_softap(&g_address);
+    ESP_LOGI(TAG, "Address is %d", g_address.i_addr);
+
+    ESP_LOGI(TAG, "Setting baud to 9600");
     ID set_baud_cmd = create_command("AT+IPR=9600");
     queue_send(set_baud_cmd, NO_ID);
 
-    printf("SETTING NODE ADDRESS\n");
+    ESP_LOGI(TAG, "Setting node address to %d", g_address.i_addr);
 
     char update_addr_buffer[32];
     sprintf(update_addr_buffer, "AT+ADDRESS=%d", g_address.i_addr);

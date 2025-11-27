@@ -18,6 +18,11 @@
 #include "node_globals.h"
 #include "node_table.h"
 
+/*
+
+should deal with reading, writing, 
+*/
+
 
 static const char *TAG = "UART";
 
@@ -448,7 +453,6 @@ static void rcv_handler_task(void *arg) {
                 // misses not really used rn
                 origin_node->misses = 0;
                 src_node->misses = 0;
-
 
 
                 // check to see if id already exists.

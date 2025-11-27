@@ -7,12 +7,15 @@
 #include "freertos/semphr.h"
 
 #include "data_table.h"
+#include "esp_log.h"
 
 NodeEntry *g_node_table = NULL;
-static SemaphoreHandle_t g_ntb_mutex; 
+static SemaphoreHandle_t g_ntb_mutex;
+static const char *TAG = "NODE TABLE";
 
 
 void node_table_init(void) {
+    ESP_LOGI(TAG, "NODE TABLE INIT");
     g_ntb_mutex = xSemaphoreCreateMutex();
 }
 
@@ -47,7 +50,7 @@ NodeEntry *create_node_object(int address) {
 
     xSemaphoreGive(g_ntb_mutex);
 
-    printf("node added %s\n", new_entry->address.s_addr);
+    ESP_LOGI(TAG, "Node added (%d)",new_entry->address.s_addr);
 
     return new_entry;
 }
