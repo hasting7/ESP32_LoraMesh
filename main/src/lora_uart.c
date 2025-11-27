@@ -12,11 +12,14 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
+#include "esp_log.h"
 
 #include "mesh_config.h"
 #include "node_globals.h"
 #include "node_table.h"
 
+
+static const char *TAG = "UART";
 
 static QueueHandle_t MessageQueue;
 
@@ -120,7 +123,7 @@ int format_message_command(ID msg_id, char *command_buffer, size_t *length) {
     DataEntry *data = hash_find(g_msg_table, msg_id);
     ID to_address = data->target_node;
     if (!data) {
-        printf("msg with ID: %d DNE\n", msg_id);
+        ESP_LOGE(TAG, "Formatting message id=%d does not exist",msg_id);
         return 0;
     }
 
@@ -175,7 +178,6 @@ int format_message_command(ID msg_id, char *command_buffer, size_t *length) {
 
     cmd[cmd_len] = '\0';
 
-    printf("msg content: ");
     for (int i = 0 ; i < cmd_len ; i++) {
         printf("%c",cmd[i]);
     }
@@ -215,8 +217,6 @@ int format_message_command(ID msg_id, char *command_buffer, size_t *length) {
 
 
 int send_message_blocking(ID msg_id) {
-    printf("send_message_blocking(id = %d)\n",msg_id);
-
     DataEntry *data = hash_find(g_msg_table, msg_id);
 
     char command_buffer[256];
@@ -224,40 +224,27 @@ int send_message_blocking(ID msg_id) {
 
     if (data->message_type == COMMAND) {
         // send message as just content
-        printf("command: %s (%d)\n",data->content, data->length);
         length = strlcpy(command_buffer, data->content, sizeof(command_buffer));
         if (length >= sizeof(command_buffer) - 2) {
-            // Not enough room for "\r\n" + '\0'
-            printf("COMMAND too long for command_buffer\n");
-            return -1;
+            length -= 2;
         }
-        printf("command: %s (%d)\n",command_buffer, length);
         command_buffer[length++] = '\r';
         command_buffer[length++] = '\n';
         command_buffer[length] = '\0';
-        printf("Command string construction: %s (len = %d)\n", command_buffer, length);
+        ESP_LOGI(TAG, "Sending command construction \"%s\" (len = %d)",command_buffer, length);
     } else {
         // send formatted message
         if (!format_message_command(msg_id, command_buffer, &length)) {
-            printf("issue formatting send message string\n");
+            ESP_LOGE(TAG, "Issue formatting send message string");
+
             return 0;
         }
-        printf("resp from format msg command: len = %d msg = %s\n", length, command_buffer);
     }
-
-    printf("SENDING:\n");
-    for (int i = 0 ; i < length ; i++) {
-        printf("MSG char (%d): 0x%02X '%c'\n",
-            i,
-            command_buffer[i],
-            (command_buffer[i] >= 32 && command_buffer[i] <= 126) ? command_buffer[i] : '.');
-    }
-    printf(" \n");
 
     size_t max_response_length = 40;
     char response_buffer[max_response_length];
 
-    int resp = uart_send_and_block(command_buffer, length, response_buffer, max_response_length);
+    int send_status = uart_send_and_block(command_buffer, length, response_buffer, max_response_length);
 
     if (data->message_type == COMMAND) {
         // if msg was a command create a ack msg with the result of the command (and mark as acked ig)
@@ -265,11 +252,11 @@ int send_message_blocking(ID msg_id) {
         create_data_object(NO_ID, COMMAND, response_buffer, -1, addr, -1, 0, 0, 0, msg_id);
         data->ack_status = 1;
     }
+    ESP_LOGI(TAG, "Response = \"%s\" (code %d) for msg %d",response_buffer, send_status, msg_id);
 
-    printf("Response = \"%s\"\nResponse code: %d\n", response_buffer, resp);
-    data->transfer_status = resp;
+    data->transfer_status = send_status;
 
-    return resp;
+    return send_status;
 }
 
 
@@ -281,7 +268,7 @@ MessageSendingStatus uart_send_and_block(char *cmd, size_t length, char *resp_bu
     // 1) Flush stale responses
     char junk[256];
     while (xQueueReceive(q_resp, junk, 0) == pdTRUE) {
-        printf("Flushing stale resp: \"%s\"\n", junk);
+        ESP_LOGW(TAG, "Flushing stale line from response queue: \"%s\"",junk);
     }
 
     // 2) Send command
@@ -327,7 +314,7 @@ MessageSendingStatus uart_send_and_block(char *cmd, size_t length, char *resp_bu
         last_line_time = now;
         got_any = true;
 
-        printf("Response line: \"%s\"\n", line);
+        ESP_LOGD(TAG, "Response line: \"%s\"\n", line);
 
         // -------- status parsing (both 998 + 993) --------
 
@@ -511,7 +498,7 @@ static void rcv_handler_task(void *arg) {
 
 
 static void uart_reader_task(void *arg) {
-    printf("UART READER INIT\n");
+    ESP_LOGI(TAG, "UART READER INIT\n");
     char line[256];
     int len = 0;
     bool saw_cr = false;
@@ -527,18 +514,8 @@ static void uart_reader_task(void *arg) {
             // if the \r\n already terminated the message any tailing \r or \n will be forgotten bc new msg should start with '+'
             continue;
         }
-
-        // printf("RX char: 0x%02X '%c'\n",
-        //        ch,
-        //        (ch >= 32 && ch <= 126) ? ch : '.');
-
         if (ch == '\r') { saw_cr = true; continue; }
         if (saw_cr && ch == '\n') {
-            printf("UART read: ");
-            for (int i = 0; i < len; i++) {
-                printf("%c",line[i]);
-            }
-            printf("\n");
             line[len] = '\0';
 
             if (strncmp(line, "+RCV=", 5) == 0) {
@@ -578,7 +555,7 @@ void ping_suspect_node(void *args) {
 
     DataEntry *ping_msg = hash_find(g_msg_table, node->ping_id);
     if (!ping_msg) { 
-        printf("no ping msg for node %d\n",node->address.i_addr);
+        ESP_LOGW(TAG, "no ping msg for node %d\n",node->address.i_addr);
         vTaskDelete(NULL); return; 
     }
 
@@ -621,7 +598,7 @@ void node_status_task(void *args) {
                 node->status = ALIVE;
                 node->misses = 0;
             } else if ((delta > REQUEST_STATUS_TIME) && (node->status == ALIVE)) {
-                printf("Node (%d) is suspected to be dead. pinging...\n",node->address.i_addr);
+                ESP_LOGW(TAG, "Node (%d) is suspected to be dead. pinging...\n",node->address.i_addr);
                 // it was alive but last connection was over a minute ago.
                 // mark as suspect then ping_suspect_node
                 node->status = UNKNOWN;
