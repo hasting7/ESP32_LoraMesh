@@ -27,19 +27,18 @@ void app_main(void)
     wifi_start_softap(&g_address);
     ESP_LOGI(TAG, "Address is %d", g_address.i_addr);
 
-    ESP_LOGI(TAG, "Setting baud to 9600");
-    ID set_baud_cmd = create_command("AT+IPR=9600");
-    queue_send(set_baud_cmd, NO_ID);
+    ID query_baud = create_command("AT+IPR?");
+    queue_send(query_baud, NO_ID);
 
     ESP_LOGI(TAG, "Setting node address to %d", g_address.i_addr);
 
     char update_addr_buffer[32];
     sprintf(update_addr_buffer, "AT+ADDRESS=%d", g_address.i_addr);
-    update_addr_buffer[31] = '\0';
+    // update_addr_buffer[31] = '\0';
 
     ID addr_set_cmd = create_command(update_addr_buffer);
     queue_send(addr_set_cmd, NO_ID);
-
+//
 
     create_node_object(g_address.i_addr);
 

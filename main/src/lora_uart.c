@@ -236,9 +236,8 @@ void uart_init(void) {
     q_rcv  = xQueueCreate(16, 256);
     q_resp = xQueueCreate(16, 256);
 
-    int baud = 9600;
     uart_config_t uart_config = {
-        .baud_rate = baud,
+        .baud_rate = BAUD,
         .data_bits = UART_DATA_8_BITS,
         .parity = UART_PARITY_DISABLE,
         .stop_bits = UART_STOP_BITS_1,

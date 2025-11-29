@@ -16,5 +16,4 @@
 #define UART_WRITE_BUFF (0)
 #define UART_PORT       (UART_NUM_2)
 #define BAUD            (9600) //115200
-
 #endif // MESH_CONFIG_H
