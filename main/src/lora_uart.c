@@ -18,12 +18,6 @@
 #include "node_globals.h"
 #include "node_table.h"
 
-/*
-
-should deal with reading, writing, 
-*/
-
-
 static const char *TAG = "UART";
 
 static QueueHandle_t MessageQueue;
@@ -39,183 +33,42 @@ static bool parse_rcv_line(const char *line,
                            ID *origin, ID *dest, int *step, int *msg_type, ID *id, ID *ack_for,
                            int *rssi, int *snr)
 {
-    if (!line || !from || !len || !data || data_cap == 0 ||
-        !origin || !dest || !step || !msg_type || !id || !rssi || !snr) {
-        return false;
+    // data->content, data->origin_node, data->dst_node, data->steps, data->message_type, data->id, data->ack_for);
+    int scanned = sscanf(line, "+RCV=%hd,%d,%s,%hd,%hd,%d,%d,%hd,%hd,%d,%d",
+        from, len, data, origin, dest, step, msg_type, id, ack_for, rssi, snr
+    );
+    printf("Scanned args = %d\n",scanned);
+    if (scanned != 11) {
+        printf("wrong number of args read\n");
     }
-
-    // Prefix
-    if (strncmp(line, "+RCV=", 5) != 0) return false;
-    const char *p = line + 5;
-    char *end = NULL;
-
-    // <from>
-    long f = strtol(p, &end, 10);
-    if (end == p || *end != ',') return false;
-    p = end + 1;
-
-    // <len>
-    long l = strtol(p, &end, 10);
-    if (end == p || *end != ',') return false;
-    if (l < 0) return false;
-    p = end + 1;
-
-
-    int data_len = (int)l;
-    size_t to_copy = (data_cap > 0 && (size_t)data_len >= data_cap) ? (data_cap - 1) : (size_t)data_len;
-    if (data_cap == 0) return false;
-    memcpy(data, p, to_copy);
-    data[to_copy] = '\0';          // safe sentinel for any incidental string use
-    p += data_len;                 // advance past DATA in the input string
-
-    // Next must be comma before RSSI/SNR
-    if (*p != ',') return false;
-    p++;
-
-    // <rssi> (integer)
-    long rssi_l = strtol(p, &end, 10);
-    if (end == p || *end != ',') return false;
-    p = end + 1;
-
-    // <snr> (often float; parse as double then cast to int field you requested)
-    double snr_d = strtod(p, &end);
-    if (end == p || *end != '\0') return false;
-
-    // // Need at least 7 bytes: 2(origin) + 2(dest) + 1(step+type) + 2(id)
-    // if (data_len < 7) return false;
-
-    const uint8_t *bytes = (const uint8_t *)data;
-    size_t idx = (size_t)data_len;
-
-    uint8_t ack_hi = bytes[--idx];
-    uint8_t ack_lo = bytes[--idx];
-    idx -= 1; // ','
-    *ack_for = (ID)(((uint16_t)ack_hi << 8) | ack_lo);
-
-    uint8_t id_hi = bytes[--idx];
-    uint8_t id_lo = bytes[--idx];
-    idx -= 1; // ','
-    *id = (ID)(((uint16_t)id_hi << 8) | id_lo);
-
-    uint8_t packed = bytes[--idx];
-    idx -= 1; // ','
-    *step     = (int)((packed >> 4) & 0x7);
-    *msg_type = (int)(packed & 0xF);
-
-    uint8_t dest_hi = bytes[--idx];
-    uint8_t dest_lo = bytes[--idx];
-    idx -=1; // ','
-    *dest = (ID)(((uint16_t)dest_hi << 8) | dest_lo);
-
-    uint8_t orig_hi = bytes[--idx];
-    uint8_t orig_lo = bytes[--idx];
-    idx -= 1;
-    *origin = (ID)(((uint16_t)orig_hi << 8) | orig_lo);
-
-    // Outputs
-    *from = (ID)f;
-    *len  = (int)l;
-    *rssi = (int)rssi_l;
-    *snr  = (int)(snr_d);
-    data[idx] = '\0';
-
 
     return true;
 }
 
 
-int format_message_command(ID msg_id, char *command_buffer, size_t *length) {
+int format_message_command(ID msg_id, char *command_buffer, size_t length) {
     DataEntry *data = hash_find(g_msg_table, msg_id);
-    ID to_address = data->target_node;
+    // ID to_address = data->target_node;
     if (!data) {
         ESP_LOGE(TAG, "Formatting message id=%d does not exist",msg_id);
         return 0;
     }
 
-    // using uint16_t (two chars)         2bytes  2bytes       1byte        2 bytes (meta data size = 7) saving 7 bytes
+    // using uint16_t (two chars)         2bytes  2bytes       1b yte        2 bytes (meta data size = 7) saving 7 bytes
     // Build message payload: "<content>,<origin>,<dest>,<steps>,<msg_type>,<id>,<ack_for_id>"
     // char cmd[512];
-    uint8_t cmd[512];
-    int cmd_len = 0;
+    char payload[256];
+    int payload_len = 0;
 
-    // add in message first
-    for (char *c = data->content; *c ; c++) {
-        cmd[cmd_len++] = *c;
-    }
-    cmd[cmd_len++] = ',';
+    payload_len = snprintf(payload, sizeof(payload), "%s,%u,%u,%d,%d,%u,%u",
+                        data->content, data->origin_node, data->dst_node, data->steps, data->message_type, data->id, data->ack_for);
 
-    // add in origin ID
+    printf("PAYLOAD: %s\n",payload);
+    int final_str_length = snprintf(command_buffer, length, "AT+SEND=%d,%d,%s\r\n", data->target_node, payload_len, payload);
 
-    // convert origin to an array of uint8_t and add byte at a time
-    uint8_t *origin = (uint8_t *) &data->origin_node;
-    cmd[cmd_len++] = origin[0];
-    cmd[cmd_len++] = origin[1];
+    printf("COMMAND: %s",command_buffer);
 
-    cmd[cmd_len++] = ',';
-    // add in destination ID
-
-    uint8_t *dest = (uint8_t *) &data->dst_node;
-    cmd[cmd_len++] = dest[0];
-    cmd[cmd_len++] = dest[1];
-
-    cmd[cmd_len++] = ',';
-    // merge msg type and steps into one byte
-    uint8_t steps = (data->steps) > 7 ? 7 : data->steps; // clamp to 3 bits max
-    // message type should be less that 15
-
-    // upper 4 bits for steps lower 4 for type
-    uint8_t single_byte_data = ((steps & 0x7) << 4) | (data->message_type & 0xF);
-    cmd[cmd_len++] = single_byte_data;
-
-
-    cmd[cmd_len++] = ',';
-    // add in id
-
-    uint8_t *this_id = (uint8_t *) &data->id;
-    cmd[cmd_len++] = this_id[0];
-    cmd[cmd_len++] = this_id[1];
-    cmd[cmd_len++] = ',';
-
-    // add ack_for_id
-    uint8_t *ack_id = (uint8_t *) &data->ack_for;
-    cmd[cmd_len++] = ack_id[0];
-    cmd[cmd_len++] = ack_id[1];
-
-    cmd[cmd_len] = '\0';
-
-    for (int i = 0 ; i < cmd_len ; i++) {
-        printf("%c",cmd[i]);
-    }
-    printf("\n");
-
-    char to_address_s[12];
-    char len_s[12];
-    snprintf(to_address_s, sizeof(to_address_s), "%d", to_address);
-    snprintf(len_s, sizeof(len_s), "%d", cmd_len);
-
-    char final_cmd_buffer[512] = "AT+SEND=";
-    int final_len = 8;
-
-    for (char *c = to_address_s; *c; c++) {
-        final_cmd_buffer[final_len++] = *c;
-    }
-    final_cmd_buffer[final_len++] = ',';
-
-    for (char *c = len_s; *c; c++) {
-        final_cmd_buffer[final_len++] = *c;
-    }
-    final_cmd_buffer[final_len++] = ',';
-    for (int i = 0 ; i < cmd_len ; i++) {
-        final_cmd_buffer[final_len++] = cmd[i];
-    }
-    final_cmd_buffer[final_len++] = '\r';
-    final_cmd_buffer[final_len++] = '\n';
-    final_cmd_buffer[final_len + 1] = '\0';
-
-    *length = final_len;
-    for (int i = 0; i < final_len; i++) {
-        command_buffer[i] = final_cmd_buffer[i];
-    }
+    return final_str_length;
 
     return 1;
 }
@@ -239,7 +92,9 @@ int send_message_blocking(ID msg_id) {
         ESP_LOGI(TAG, "Sending command construction \"%s\" (len = %d)",command_buffer, length);
     } else {
         // send formatted message
-        if (!format_message_command(msg_id, command_buffer, &length)) {
+        length = format_message_command(msg_id, command_buffer, sizeof(command_buffer));
+        printf("Command (len = %d) is \"%s\"",length, command_buffer);
+        if (!length) {
             ESP_LOGE(TAG, "Issue formatting send message string");
 
             return 0;
@@ -278,12 +133,12 @@ MessageSendingStatus uart_send_and_block(char *cmd, size_t length, char *resp_bu
 
     // 2) Send command
 
-    for (int i = 0; i < length; i++) {
-        char ch = cmd[i];
-        printf("char: 0x%02X '%c'\n",
-            ch,
-            (ch >= 32 && ch <= 126) ? ch : '.');
-    }
+    // for (int i = 0; i < length; i++) {
+    //     char ch = cmd[i];
+    //     printf("char: 0x%02X '%c'\n",
+    //         ch,
+    //         (ch >= 32 && ch <= 126) ? ch : '.');
+    // }
 
     uart_write_bytes(UART_PORT, cmd, length);
 
@@ -519,6 +374,10 @@ static void uart_reader_task(void *arg) {
         uint8_t ch;
         int n = uart_read_bytes(UART_PORT, &ch, 1, pdMS_TO_TICKS(50));
         if (n <= 0) continue;
+
+        printf("TX char: 0x%02X '%c'\n",
+            ch,
+            (ch >= 32 && ch <= 126) ? ch : '.');
 
         if (len == 0 && ((ch == '\r') || (ch == '\n')) ) {
             printf("Ditching char either '\\r' or '\\n'\n");
