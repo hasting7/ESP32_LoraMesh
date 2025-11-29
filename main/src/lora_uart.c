@@ -277,6 +277,14 @@ MessageSendingStatus uart_send_and_block(char *cmd, size_t length, char *resp_bu
     }
 
     // 2) Send command
+
+    for (int i = 0; i < length; i++) {
+        char ch = cmd[i];
+        printf("char: 0x%02X '%c'\n",
+            ch,
+            (ch >= 32 && ch <= 126) ? ch : '.');
+    }
+
     uart_write_bytes(UART_PORT, cmd, length);
 
     // 3) Collect lines
@@ -559,7 +567,7 @@ void ping_suspect_node(void *args) {
 
     DataEntry *ping_msg = hash_find(g_msg_table, node->ping_id);
     if (!ping_msg) { 
-        ESP_LOGW(TAG, "no ping msg for node %d\n",node->address.i_addr);
+        ESP_LOGW(TAG, "no ping msg for node %d",node->address.i_addr);
         vTaskDelete(NULL); return; 
     }
 
@@ -602,7 +610,7 @@ void node_status_task(void *args) {
                 node->status = ALIVE;
                 node->misses = 0;
             } else if ((delta > REQUEST_STATUS_TIME) && (node->status == ALIVE)) {
-                ESP_LOGW(TAG, "Node (%d) is suspected to be dead. pinging...\n",node->address.i_addr);
+                ESP_LOGW(TAG, "Node (%d) is suspected to be dead. pinging...",node->address.i_addr);
                 // it was alive but last connection was over a minute ago.
                 // mark as suspect then ping_suspect_node
                 node->status = UNKNOWN;

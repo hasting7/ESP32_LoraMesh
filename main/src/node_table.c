@@ -50,7 +50,7 @@ NodeEntry *create_node_object(int address) {
 
     xSemaphoreGive(g_ntb_mutex);
 
-    ESP_LOGI(TAG, "Node added (%d)",new_entry->address.s_addr);
+    ESP_LOGI(TAG, "Node added (%s)",new_entry->address.s_addr);
 
     return new_entry;
 }
