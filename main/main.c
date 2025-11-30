@@ -34,11 +34,10 @@ void app_main(void)
 
     char update_addr_buffer[32];
     sprintf(update_addr_buffer, "AT+ADDRESS=%d", g_address.i_addr);
-    // update_addr_buffer[31] = '\0';
+    update_addr_buffer[31] = '\0';
 
     ID addr_set_cmd = create_command(update_addr_buffer);
     queue_send(addr_set_cmd, NO_ID);
-//
 
     create_node_object(g_address.i_addr);
 
@@ -48,7 +47,7 @@ void app_main(void)
     xTaskCreate(node_status_task, "node status checker", 4096, NULL, 5, NULL);
 
     // find neighbors
-
+ 
     ID neighbor_msg_id = create_data_object(NO_ID, MAINTENANCE, "discovery", g_address.i_addr, 0, g_address.i_addr, 0, 0, 0, NO_ID);
     queue_send(neighbor_msg_id, 0);
 

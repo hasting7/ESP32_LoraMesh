@@ -34,12 +34,16 @@ static bool parse_rcv_line(const char *line,
                            int *rssi, int *snr)
 {
     // data->content, data->origin_node, data->dst_node, data->steps, data->message_type, data->id, data->ack_for);
-    int scanned = sscanf(line, "+RCV=%hd,%d,%s,%hd,%hd,%d,%d,%hd,%hd,%d,%d",
+    //                          +RCV=6121,22,ping,6121,0,0,6,2009,0,-5,11
+    int scanned = sscanf(line, "+RCV=%hd,%d,%250[^,],%hd,%hd,%d,%d,%hd,%hd,%d,%d",
         from, len, data, origin, dest, step, msg_type, id, ack_for, rssi, snr
     );
     printf("Scanned args = %d\n",scanned);
+    printf("+RCV=from = %hd,len = %d,data = %s,origin = %hd,dest = %hd,step = %d,msg_type = %d,id = %hd,ack_for = %hd,rssi = %d,snr = %d\n",
+        *from, *len, data, *origin, *dest, *step, *msg_type, *id, *ack_for, *rssi, *snr);
     if (scanned != 11) {
         printf("wrong number of args read\n");
+        return false;
     }
 
     return true;
@@ -267,25 +271,32 @@ void handle_maintenance_msg(ID msg_id) {
 
     // buffer for message to send back
     char buffer[240];
-    int len = 1;
+    int len = 0;
 
+    buffer[len++] = 'h';
+    buffer[len++] = 'i';
+    buffer[len] = '\0';
+
+/*
     // branch based on what kinda maintenace
     if (strncmp(respond_to_msg->content, "discovery", 9)) {
         // this is asking about all the nodes on the network
         // respond back with node_id,...,node_id
-        NodeEntry *node = g_node_table;
-        uint8_t *node_addr_arr;
-        uint8_t node_count = 0;
-        while (node) {
-            node_addr_arr = (uint8_t *) &node->address.s_addr;
-            buffer[len++] = node_addr_arr[0];
-            buffer[len++] = node_addr_arr[1];
-            node_count++;
-            node = node->next;
-        }
-        buffer[0] = node_count;
+        // NodeEntry *node = g_node_table;
+        // uint8_t *node_addr_arr;
+        // uint8_t node_count = 0;
+        // while (node) {
+        //     node_addr_arr = (uint8_t *) &node->address.s_addr;
+        //     buffer[len++] = node_addr_arr[0];
+        //     buffer[len++] = node_addr_arr[1];
+        //     node_count++;
+        //     node = node->next;
+        // }
+        buffer[len++] = 'h';
+        buffer[len++] = 'i';
         buffer[len] = '\0';
     }
+    */
 
     ID response_msg = create_data_object(NO_ID, ACK, buffer, g_address.i_addr, respond_to_msg->origin_node, g_address.i_addr, 0, 0, 0, msg_id);
     queue_send(response_msg, respond_to_msg->origin_node);
@@ -304,6 +315,8 @@ static void rcv_handler_task(void *arg) {
                 NodeEntry *origin_node = get_node_ptr(origin);
                 if (!origin_node) origin_node = create_node_object(origin);
 
+                // the src node is the from address unless it was broadcast (addr = 0) then use origin
+                from = (!from) ? origin : from;
                 NodeEntry *src_node = get_node_ptr(from);
                 if (!src_node) src_node = create_node_object(from);
 
@@ -374,9 +387,9 @@ static void uart_reader_task(void *arg) {
         int n = uart_read_bytes(UART_PORT, &ch, 1, pdMS_TO_TICKS(50));
         if (n <= 0) continue;
 
-        printf("TX char: 0x%02X '%c'\n",
-            ch,
-            (ch >= 32 && ch <= 126) ? ch : '.');
+        // printf("TX char: 0x%02X '%c'\n",
+        //     ch,
+        //     (ch >= 32 && ch <= 126) ? ch : '.');
 
         if (len == 0 && ((ch == '\r') || (ch == '\n')) ) {
             printf("Ditching char either '\\r' or '\\n'\n");
@@ -438,7 +451,7 @@ void ping_suspect_node(void *args) {
         // send ping
         queue_send(node->ping_id, node->address.i_addr);
 
-        vTaskDelay(pdMS_TO_TICKS(delay * 1000));
+        vTaskDelay(pdMS_TO_TICKS(delay * 1500));
 
         delay <<= 1;
 
