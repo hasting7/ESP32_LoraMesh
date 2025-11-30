@@ -15,8 +15,6 @@
 
 static const char *TAG = "Main";
 
-#define RESET (0)
-
 
 void app_main(void)
 {
