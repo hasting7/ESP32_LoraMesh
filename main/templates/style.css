@@ -94,7 +94,7 @@ form select:focus {
   box-shadow: 0 0 0 2px var(--focus);
 }
 
-/* custom select styling */
+/* custom select styling in form */
 
 form select {
   appearance: none;
@@ -132,20 +132,12 @@ form input[type="submit"]:active {
   box-shadow: 0 4px 10px rgba(15, 23, 42, 0.2);
 }
 
-/* Main layout */
+/* Main layout (single column) */
 
-/* Give system side a bit more room so content isn't cut off */
 #layout {
   max-width: 1200px;
   margin: 0 auto 50px;
-  padding: 0 12px;
-  display: grid;
-  grid-template-columns: minmax(0, 1.7fr) minmax(0, 1.5fr);
-  gap: 16px;
-  align-items: flex-start;
-}
-
-#right-column {
+  padding: 0 12px 20px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -253,7 +245,10 @@ form input[type="submit"]:active {
   font-size: 0.86rem;
 }
 
-/* alignment: from-me on the right, from-them left */
+/* alignment and color:
+   - from-me: right, dark bg
+   - to-me: left, green-tinted
+   - third-party: left, neutral */
 
 .chat-msg.from-me {
   align-self: flex-end;
@@ -262,9 +257,17 @@ form input[type="submit"]:active {
   border-bottom-right-radius: 4px;
 }
 
-.chat-msg.from-them {
+.chat-msg.to-me {
   align-self: flex-start;
-  /* background color is set per-sender in JS */
+  background: #dcfce7;
+  color: #064e3b;
+  border-bottom-left-radius: 4px;
+  border: 1px solid #bbf7d0;
+}
+
+.chat-msg.third-party {
+  align-self: flex-start;
+  background: #f9fafb;
   color: #111827;
   border-bottom-left-radius: 4px;
   border: 1px solid #e5e7eb;
@@ -283,7 +286,8 @@ form input[type="submit"]:active {
   color: rgba(249,250,251,0.72);
 }
 
-.from-them .chat-route {
+.chat-msg.to-me .chat-route,
+.chat-msg.third-party .chat-route {
   color: var(--muted);
 }
 
@@ -352,6 +356,12 @@ form input[type="submit"]:active {
   font-size: 0.8rem;
 }
 
+/* Let system table breathe horizontally */
+.info-table.wide th,
+.info-table.wide td {
+  font-size: 0.78rem;
+}
+
 .info-table thead th {
   background: #f3f4f6;
   color: #374151;
@@ -374,9 +384,22 @@ form input[type="submit"]:active {
   border-bottom: none;
 }
 
-/* Let system content breathe instead of heavy truncation */
+/* System row coloring for to/from current node */
+
+.sys-from-me td {
+  background: #111827;
+  color: #f9fafb;
+}
+
+.sys-to-me td {
+  background: #dcfce7;
+  color: #064e3b;
+}
+
+/* content column: wrap instead of truncating hard */
+
 .info-table .col-content {
-  max-width: 360px;
+  max-width: 520px;
   white-space: normal;
   word-wrap: break-word;
 }
@@ -405,15 +428,7 @@ form input[type="submit"]:active {
 
 @media (max-width: 900px) {
   #layout {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  #right-column {
-    order: 2;
-  }
-
-  #chat-card {
-    order: 1;
+    padding: 0 8px 24px;
   }
 
   .card-header {
@@ -431,6 +446,11 @@ form input[type="submit"]:active {
 
   .chat-msg {
     max-width: 100%;
+  }
+
+  .info-table.wide th,
+  .info-table.wide td {
+    font-size: 0.72rem;
   }
 }
 

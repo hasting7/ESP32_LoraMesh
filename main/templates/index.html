@@ -31,9 +31,8 @@
     </div>
   </form>
 
-  <!-- Main Layout -->
   <main id="layout">
-    <!-- LEFT: Chat thread -->
+    <!-- CHAT CARD -->
     <section id="chat-card" class="card">
       <div class="card-header">
         <div>
@@ -56,64 +55,68 @@
       <div id="chat-empty" class="empty-state">No chat messages yet.</div>
     </section>
 
-    <!-- RIGHT: System + Nodes -->
-    <section id="right-column">
-      <!-- System messages -->
-      <section id="system-card" class="card">
-        <div class="card-header">
-          <div>
-            <h2>System Traffic</h2>
-            <p class="card-subtitle">ACK, ping, maintenance &amp; command</p>
-          </div>
+    <!-- SYSTEM TRAFFIC CARD (full width under chat) -->
+    <section id="system-card" class="card">
+      <div class="card-header">
+        <div>
+          <h2>System Traffic</h2>
+          <p class="card-subtitle">ACK, ping, maintenance &amp; command messages</p>
         </div>
+      </div>
 
-        <div class="table-wrapper">
-          <table class="info-table">
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Type</th>
-                <th>From</th>
-                <th>To</th>
-                <th>Ack For</th>
-                <th>RSSI</th>
-                <th>SNR</th>
-                <th>Content</th>
-              </tr>
-            </thead>
-            <tbody id="system-tbody"></tbody>
-          </table>
-          <div id="system-empty" class="empty-state small">No system messages.</div>
-        </div>
-      </section>
+      <div class="table-wrapper">
+        <table class="info-table wide">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>ID</th>
+              <th>Type</th>
+              <th>Origin</th>
+              <th>Source</th>
+              <th>Destination</th>
+              <th>Steps</th>
+              <th>Length</th>
+              <th>RSSI</th>
+              <th>SNR</th>
+              <th>Stage</th>
+              <th>Transfer</th>
+              <th>Ack Status</th>
+              <th>Ack For</th>
+              <th>Content</th>
+            </tr>
+          </thead>
+          <tbody id="system-tbody"></tbody>
+        </table>
+        <div id="system-empty" class="empty-state small">No system messages.</div>
+      </div>
+    </section>
 
-      <!-- Nodes -->
-      <section id="nodes-card" class="card">
-        <div class="card-header">
-          <div>
-            <h2>Nodes</h2>
-            <p class="card-subtitle">Status, message counts &amp; link quality</p>
-          </div>
+    <!-- NODES CARD -->
+    <section id="nodes-card" class="card">
+      <div class="card-header">
+        <div>
+          <h2>Nodes</h2>
+          <p class="card-subtitle">Status, message counts &amp; link quality</p>
         </div>
+      </div>
 
-        <div class="table-wrapper">
-          <table class="info-table">
-            <thead>
-              <tr>
-                <th>Addr</th>
-                <th>Name</th>
-                <th># Msgs</th>
-                <th>Avg RSSI</th>
-                <th>Avg SNR</th>
-                <th>Status</th>
-                <th>Last Connection</th>
-              </tr>
-            </thead>
-            <tbody id="node-tbody"></tbody>
-          </table>
-          <div id="node-empty" class="empty-state small">No nodes seen yet.</div>
-        </div>
-      </section>
+      <div class="table-wrapper">
+        <table class="info-table">
+          <thead>
+            <tr>
+              <th>Addr</th>
+              <th>Name</th>
+              <th># Msgs</th>
+              <th>Avg RSSI</th>
+              <th>Avg SNR</th>
+              <th>Status</th>
+              <th>Last Connection</th>
+            </tr>
+          </thead>
+          <tbody id="node-tbody"></tbody>
+        </table>
+        <div id="node-empty" class="empty-state small">No nodes seen yet.</div>
+      </div>
     </section>
   </main>
 
@@ -131,27 +134,19 @@
     let ackedIds = new Set();
     let currentNodeAddr = null;
 
-    // Persisted UI selections (so they don't reset on refresh/poll)
-    let selectedPeer = 'all';
+    // Persisted UI selections
+    let selectedPeer   = 'all';
     let selectedTarget = '';
 
-    // Sender color mapping (per-origin)
-    const senderColorMap = {};
-    const senderColorPalette = [
-      '#fef3c7', '#e0f2fe', '#e9d5ff', '#dcfce7',
-      '#fee2e2', '#f5f5f4', '#fce7f3', '#cffafe'
-    ];
-    let nextSenderColorIndex = 0;
-
-    function getSenderColor(origin) {
-      const key = String(origin);
-      if (!senderColorMap[key]) {
-        senderColorMap[key] =
-          senderColorPalette[nextSenderColorIndex % senderColorPalette.length];
-        nextSenderColorIndex++;
-      }
-      return senderColorMap[key];
-    }
+    const MSG_TYPE_LABEL = {
+      1: "Broadcast",
+      2: "Normal",
+      3: "Ack",
+      4: "Critical",
+      5: "Maintenance",
+      6: "Ping",
+      7: "Command",
+    };
 
     // ==== Helpers ====
 
@@ -178,16 +173,6 @@
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#39;");
     }
-
-    const MSG_TYPE_LABEL = {
-      1: "Broadcast",
-      2: "Normal",
-      3: "Ack",
-      4: "Critical",
-      5: "Maintenance",
-      6: "Ping",
-      7: "Command",
-    };
 
     function getTimestampSeconds(m) {
       const ts = m.timestamp;
@@ -240,8 +225,8 @@
 
       const peer = String(selectedPeer);
 
-      // If we don't know current node yet, fall back to basic "involves peer"
       if (!currentNodeAddr) {
+        // fallback: anything involving that peer
         return list.filter(m =>
           String(m.origin)      === peer ||
           String(m.source)      === peer ||
@@ -272,7 +257,7 @@
       ackedIds = set;
     }
 
-    // ==== Rendering: Chat ====
+    // ===== CHAT RENDERING =====
 
     function renderChat() {
       const listEl  = document.getElementById('chat-list');
@@ -290,7 +275,7 @@
       }
       emptyEl.style.display = 'none';
 
-      // Newest at the TOP by timestamp
+      // Newest at TOP by timestamp
       chats.sort((a, b) => {
         const ta = getTimestampSeconds(a);
         const tb = getTimestampSeconds(b);
@@ -299,26 +284,31 @@
       });
 
       const frag = document.createDocumentFragment();
+      const me = currentNodeAddr != null ? String(currentNodeAddr) : null;
 
       for (const m of chats) {
-        const t      = Number(m.message_type);
-        const tLabel = MSG_TYPE_LABEL[t] || "Unknown";
-        const tsSec  = getTimestampSeconds(m);
+        const t       = Number(m.message_type);
+        const tLabel  = MSG_TYPE_LABEL[t] || "Unknown";
+        const tsSec   = getTimestampSeconds(m);
         const timeStr = formatTimeShort(tsSec);
 
-        const fromMe =
-          currentNodeAddr != null &&
-          String(m.origin) === String(currentNodeAddr);
+        const origin = String(m.origin);
+        const dest   = String(m.destination);
+
+        const fromMe = me && origin === me;
+        const toMe   = me && dest   === me;
 
         const isAcked = ackedIds.has(String(m.id));
 
         const msgDiv = document.createElement('div');
-        msgDiv.className = 'chat-msg ' + (fromMe ? 'from-me' : 'from-them');
+        msgDiv.className = 'chat-msg';
 
-        // Persistent sender color (for non-me messages)
-        if (!fromMe) {
-          const bg = getSenderColor(m.origin);
-          msgDiv.style.backgroundColor = bg;
+        if (fromMe) {
+          msgDiv.classList.add('from-me');
+        } else if (toMe) {
+          msgDiv.classList.add('to-me');
+        } else {
+          msgDiv.classList.add('third-party');
         }
 
         const meta = document.createElement('div');
@@ -341,7 +331,7 @@
         timeSpan.textContent = timeStr;
         footer.appendChild(timeSpan);
 
-        // Discrete ACK marker (only for messages originating from this node)
+        // Small ACK marker only for messages originating from this node
         if (fromMe) {
           const ackSpan = document.createElement('span');
           ackSpan.className = 'chat-ack ' + (isAcked ? 'chat-ack-ok' : 'chat-ack-pending');
@@ -356,7 +346,7 @@
       listEl.appendChild(frag);
     }
 
-    // ==== Rendering: System messages table ====
+    // ===== SYSTEM TABLE RENDERING =====
 
     function renderSystem() {
       const tbody  = document.getElementById('system-tbody');
@@ -382,22 +372,42 @@
       });
 
       const frag = document.createDocumentFragment();
+      const me = currentNodeAddr != null ? String(currentNodeAddr) : null;
 
       for (const m of sys) {
-        const t      = Number(m.message_type);
-        const tLabel = MSG_TYPE_LABEL[t] || "Unknown";
-        const tsSec  = getTimestampSeconds(m);
+        const t       = Number(m.message_type);
+        const tLabel  = MSG_TYPE_LABEL[t] || "Unknown";
+        const tsSec   = getTimestampSeconds(m);
         const timeStr = formatTimeShort(tsSec);
 
+        const origin = String(m.origin);
+        const dest   = String(m.destination);
+
+        const fromMe = me && origin === me;
+        const toMe   = me && dest   === me;
+
         const tr = document.createElement('tr');
+        if (fromMe) {
+          tr.classList.add('sys-from-me');
+        } else if (toMe) {
+          tr.classList.add('sys-to-me');
+        }
+
         tr.innerHTML =
           `<td>${esc(timeStr)}</td>` +
+          `<td>${esc(m.id)}</td>` +
           `<td>${esc(tLabel)}</td>` +
+          `<td>${esc(m.origin)}</td>` +
           `<td>${esc(m.source)}</td>` +
           `<td>${esc(m.destination)}</td>` +
-          `<td>${esc(m.ack_for)}</td>` +
+          `<td>${esc(m.steps)}</td>` +
+          `<td>${esc(m.length)}</td>` +
           `<td>${esc(m.rssi)}</td>` +
           `<td>${esc(m.snr)}</td>` +
+          `<td>${esc(m.stage)}</td>` +
+          `<td>${esc(m.transfer_status)}</td>` +
+          `<td>${esc(m.ack_status)}</td>` +
+          `<td>${esc(m.ack_for)}</td>` +
           `<td class="col-content">${esc(m.content ?? '')}</td>`;
         frag.appendChild(tr);
       }
@@ -405,7 +415,7 @@
       tbody.appendChild(frag);
     }
 
-    // ==== Rendering: Nodes table & dropdowns ====
+    // ===== NODES RENDERING =====
 
     function renderNodes(list) {
       const tbody      = document.getElementById('node-tbody');
@@ -425,7 +435,7 @@
         empty.style.display = 'none';
       }
 
-      // Determine current node (for "me")
+      // Determine current node
       const current = list.find(n => n.current_node === 1);
       if (current) {
         currentNodeAddr = String(current.address);
@@ -466,8 +476,14 @@
 
       tbody.appendChild(nodeFrag);
 
-      // Target node dropdown (send) - DO NOT include current node
+      // Target node dropdown - no current node
       const currentTargetValue = selectedTarget || '';
+
+      const ph = document.createElement('option');
+      ph.value = '';
+      ph.textContent = 'Choose a node…';
+      ph.disabled = true;
+      targetSel.appendChild(ph);
 
       const optBroadcast = document.createElement('option');
       optBroadcast.value = '0';
@@ -478,8 +494,7 @@
       let hasPrevTarget = false;
 
       for (const n of list) {
-        const isCurrent = n.current_node === 1;
-        if (isCurrent) continue; // remove current node from dropdown
+        if (n.current_node === 1) continue; // skip current
 
         const opt = document.createElement('option');
         opt.value = String(n.address);
@@ -499,7 +514,6 @@
         ph.selected = true;
       }
 
-      // Remember final target selection
       selectedTarget = targetSel.value;
 
       // Conversation filter dropdown
@@ -510,6 +524,7 @@
 
       const peerFrag = document.createDocumentFragment();
       let hasPrevPeer = false;
+
       for (const n of list) {
         const opt = document.createElement('option');
         opt.value = String(n.address);
@@ -520,18 +535,20 @@
         }
         peerFrag.appendChild(opt);
       }
+
       peerSelect.appendChild(peerFrag);
+
       if (!hasPrevPeer) {
         anyOpt.selected = true;
         selectedPeer = 'all';
       }
 
-      // Re-render chat/system because fromMe + filters may change
+      // Re-render now that currentNodeAddr might have changed
       renderChat();
       renderSystem();
     }
 
-    // ==== Pollers ====
+    // ===== POLLERS =====
 
     async function pollMessages() {
       const url = newestID
@@ -542,7 +559,6 @@
       const rows = await r.json();
       if (!Array.isArray(rows) || !rows.length) return;
 
-      // rows should be newest-first
       newestID = rows[0].id || newestID;
 
       for (const m of rows) {
@@ -600,7 +616,6 @@
     window.addEventListener('DOMContentLoaded', () => {
       const peerSelect = document.getElementById('filter-peer');
       if (peerSelect) {
-        // Keep selectedPeer in sync with UI; persists across polls
         peerSelect.addEventListener('change', (e) => {
           selectedPeer = e.target.value || 'all';
           renderChat();
