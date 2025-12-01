@@ -260,6 +260,7 @@ void uart_init(void) {
 
 void handle_maintenance_msg(ID msg_id) {
     DataEntry *respond_to_msg = hash_find(g_msg_table, msg_id);
+    NodeEntry *this_node = get_node_ptr(g_address.i_addr);
     printf("MAINTENANCE msg handling for ID=%d : \"%s\"\n", respond_to_msg->id, respond_to_msg->content);
     // make sure msg is either broadcasted, or meant for this node
     // also check to make sure message has not already been received ******* DO THIS LATER
@@ -273,33 +274,40 @@ void handle_maintenance_msg(ID msg_id) {
     char buffer[240];
     int len = 0;
 
-    buffer[len++] = 'h';
-    buffer[len++] = 'i';
-    buffer[len] = '\0';
+    if (strncmp(respond_to_msg->content, "ping", 4) == 0) {
+        // get node info
+        // return back name of node
+        len = sprintf(buffer,"%s",(this_node->name[0] != '\0') ? this_node->name : "None");
+        printf("resp message (%d) \"%s\"", len, buffer);
 
-/*
-    // branch based on what kinda maintenace
-    if (strncmp(respond_to_msg->content, "discovery", 9)) {
-        // this is asking about all the nodes on the network
-        // respond back with node_id,...,node_id
-        // NodeEntry *node = g_node_table;
-        // uint8_t *node_addr_arr;
-        // uint8_t node_count = 0;
-        // while (node) {
-        //     node_addr_arr = (uint8_t *) &node->address.s_addr;
-        //     buffer[len++] = node_addr_arr[0];
-        //     buffer[len++] = node_addr_arr[1];
-        //     node_count++;
-        //     node = node->next;
-        // }
-        buffer[len++] = 'h';
-        buffer[len++] = 'i';
-        buffer[len] = '\0';
+    } else if (respond_to_msg->ack_for) {
+        DataEntry *acked_msg = hash_find(g_msg_table, respond_to_msg->ack_for);
+        if (strncmp(acked_msg->content, "ping", 4) == 0) {
+            sscanf(respond_to_msg->content, "%31s", this_node->name);
+            this_node->name[31] = '\0';
+        }
     }
-    */
 
-    ID response_msg = create_data_object(NO_ID, ACK, buffer, g_address.i_addr, respond_to_msg->origin_node, g_address.i_addr, 0, 0, 0, msg_id);
-    queue_send(response_msg, respond_to_msg->origin_node);
+    // branch based on what kinda maintenace
+    if (strncmp(respond_to_msg->content, "discovery", 9) == 0) {
+        // recivce discovery command
+
+    } else if (respond_to_msg->ack_for) {
+        // if msg is resposne to a discovery node
+        DataEntry *acked_msg = hash_find(g_msg_table, respond_to_msg->ack_for);
+        // if it is the discovery message then deal with it
+        if (strncmp(acked_msg->content, "discovery", 9) == 0) {
+            // should be a list of node ids {count},id,id,id
+
+        }
+    }
+
+    
+    if (len) {
+        // only send a response message using buffer IF len is not 0
+        ID response_msg = create_data_object(NO_ID, MAINTENANCE, buffer, g_address.i_addr, respond_to_msg->src_node, g_address.i_addr, 0, 0, 0, msg_id);
+        queue_send(response_msg, respond_to_msg->src_node);
+    }
 }
 
 static void rcv_handler_task(void *arg) {
@@ -347,7 +355,8 @@ static void rcv_handler_task(void *arg) {
 
                 }
 
-                if (msg_type == ACK) {
+                // im switching from msg_type == ACK to check to see if msg has ack_for
+                if (ack_for != NO_ID) {
                     DataEntry *acked_msg = hash_find(g_msg_table, ack_for);
                     // mark it as acked because it is
                     acked_msg->ack_status = 1;
@@ -361,7 +370,7 @@ static void rcv_handler_task(void *arg) {
                 }  
 
                 // create ack if msg of type and at destination
-                if (((msg_type == CRITICAL) || (msg_type == PING)) && (dest == g_address.i_addr)) {
+                if ((msg_type == CRITICAL) && (dest == g_address.i_addr)) {
                     char msg_id_buff[32];
                     // fix and make msg send id with it and return id
                     snprintf(msg_id_buff, 32, "ack msg for %d", id);

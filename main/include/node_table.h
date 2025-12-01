@@ -15,8 +15,8 @@ typedef enum {
 } NodeStatus;
 
 typedef struct node_table_entry {
+        char name[32];
         Address address;
-        char *name;
         float avg_rssi;                 // avg rssi coming from node to this node
         float avg_snr;                  // avg rssi coming from node to this node
         int messages;                   // total messages coming from node to this node
