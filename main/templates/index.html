@@ -469,12 +469,6 @@
       // Target node dropdown (send) - DO NOT include current node
       const currentTargetValue = selectedTarget || '';
 
-      const ph = document.createElement('option');
-      ph.value = '';
-      ph.textContent = 'Choose a node…';
-      ph.disabled = true;
-      targetSel.appendChild(ph);
-
       const optBroadcast = document.createElement('option');
       optBroadcast.value = '0';
       optBroadcast.textContent = '0 — Broadcast';
