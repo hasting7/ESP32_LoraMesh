@@ -319,23 +319,8 @@ static void rcv_handler_task(void *arg) {
             char data[256];
             if (parse_rcv_line(line, &from, &len, data, sizeof(data), &origin, &dest, &step, &msg_type, &id, &ack_for, &rssi, &snr)) {
 
-                // i should be marking the origin node and the src node as active
-                NodeEntry *origin_node = get_node_ptr(origin);
-                if (!origin_node) origin_node = create_node_object(origin);
-
-                // the src node is the from address unless it was broadcast (addr = 0) then use origin
-                from = (!from) ? origin : from;
-                NodeEntry *src_node = get_node_ptr(from);
-                if (!src_node) src_node = create_node_object(from);
-
-                time(&origin_node->last_connection);
-                time(&src_node->last_connection);
-                update_metrics(src_node, rssi, snr);
-                origin_node->status = ALIVE;
-                src_node->status = ALIVE;
-                // misses not really used rn
-                origin_node->misses = 0;
-                src_node->misses = 0;
+                // update node
+                nodes_update(id);
 
 
                 // check to see if id already exists.

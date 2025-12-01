@@ -38,5 +38,6 @@ void node_table_init(void);
 NodeEntry *create_node_object(int);
 void update_metrics(NodeEntry *node, int rssi, int snr);
 int format_node_as_json(NodeEntry *, char *, int);
+int nodes_update(ID msg_id);
 
 #endif // NODE_TABLE_H

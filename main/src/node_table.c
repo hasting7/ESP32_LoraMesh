@@ -64,10 +64,31 @@ NodeEntry *get_node_ptr(int address) {
 	return NULL;
 }
 
+// update the node collection given this new message
+int nodes_update(ID msg_id) {
+    // add node to table if doesn't exist
+    // update metrics
+    DataEntry *data = hash_find(g_msg_table, msg_id);
 
-// void remove_node(NodeEntry *node) {
-//     // remove node and all messages (destination = node, origin = node, source = node) 
-// }
+    src = (!data->src_node) ? data->origin_node : data->src_node;
+    NodeEntry *src_node = get_node_ptr(src);
+
+    NodeEntry *origin_node = get_node_ptr(data->origin_node);
+
+    if (!src_node) {
+        src_node = create_node_object(data->src_node);
+    }
+    time(&origin_node->last_connection);
+    time(&src_node->last_connection);
+    origin_node->status = ALIVE;
+    src_node->status = ALIVE;
+    // misses not really used rn
+    origin_node->misses = 0;
+    src_node->misses = 0;
+    update_metrics(src_node, data->rssi, data->snr);
+    
+    return 1;
+}
 
 void update_metrics(NodeEntry *node, int rssi, int snr) {
 	if (node->messages == 0) { // init
