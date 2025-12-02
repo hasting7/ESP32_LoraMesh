@@ -33,7 +33,7 @@ typedef enum {
 #define NO_ID (0)
 
 typedef struct data_entry_struct {
-    int64_t timestamp;           // timestamp of arrival
+    time_t timestamp;           // timestamp of arrival
     char *content;               // content of message
     ID src_node;                 // node where message came from last
     ID dst_node;                 // node where message is trying to be sent

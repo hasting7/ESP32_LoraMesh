@@ -29,21 +29,31 @@ function getTimestampSeconds(msg) {
   return isFinite(ts) ? ts / 1000 : 0;
 }
 
-function formatTimeShort(ts) {
-  const d = new Date(ts * 1000);
-  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+function formatTimeShort(tsSeconds) {
+  const d = new Date(tsSeconds * 1000);
+  let h = d.getHours();
+  let m = d.getMinutes();
+  if (h < 10) h = "0" + h;
+  if (m < 10) m = "0" + m;
+  return `${h}:${m}`;
 }
 
-function formatAgo(secondsAgo) {
-  const s = Math.trunc(secondsAgo);
-  const abs = Math.abs(s);
-  const mins = Math.floor(abs / 60);
-  const hrs = Math.floor(abs / 3600);
-  const days = Math.floor(abs / 86400);
-  if (days > 0) return `${days} day${days !== 1 ? 's' : ''} ago`;
-  if (hrs > 0) return `${hrs} hr${hrs !== 1 ? 's' : ''} ago`;
-  if (mins > 0) return `${mins} min${mins !== 1 ? 's' : ''} ago`;
-  return `${abs} sec ago`;
+
+function formatAgo(tsSeconds) {
+  const now = Math.floor(Date.now() / 1000);
+  const diff = now - tsSeconds;
+
+  const abs = Math.abs(diff);
+  const sec = abs % 60;
+  const min = Math.floor(abs / 60) % 60;
+  const hr  = Math.floor(abs / 3600);
+  const parts = [];
+
+  if (hr) parts.push(`${hr} hr${hr !== 1 ? 's' : ''}`);
+  if (min || !hr) parts.push(`${min} min${min !== 1 ? 's' : ''}`);
+  if (sec && !hr && !min) parts.push(`${sec} sec${sec !== 1 ? 's' : ''}`);
+
+  return diff >= 0 ? `${parts.join(' ')} ago` : `in ${parts.join(' ')}`;
 }
 
 function isNum(x) {
