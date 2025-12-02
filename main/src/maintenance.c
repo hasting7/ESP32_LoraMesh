@@ -141,13 +141,22 @@ static void parse_new_nodes(const char *content) {
         if (created) {
             attempt_to_reach_node(id);
         }
-
-        // move past this number
         p = end;
 
-        // skip ':' if there is another one
         if (*p == ':') {
             p++;
         }
+    }
+}
+
+void resolve_system_command(char *cmd_buffer) {
+    printf("System command: %s\n",cmd_buffer);
+
+    char name[32];
+    if (sscanf(cmd_buffer, "SYS+NAME=%31s",name)) {
+        name[31] = '\0';
+        printf("New name is %s\n",name);
+        NodeEntry *node = get_node_ptr(g_address.i_addr);
+        strlcpy(node->name, name, 32);
     }
 }

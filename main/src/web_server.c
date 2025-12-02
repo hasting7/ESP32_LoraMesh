@@ -16,10 +16,12 @@
 #include "nvs_flash.h"
 
 
+#include "maintenance.h"
 #include "data_table.h"
 #include "lora_uart.h"
 #include "mesh_config.h"
 #include "node_table.h"
+
 
 
 int cmp_dataentry_timestamp_asc(const void *a, const void *b) {
@@ -211,16 +213,18 @@ static esp_err_t send_post_handler(httpd_req_t *req)
     }
     free(buf);
 
-    ID entry_id;
+    ID entry_id = NO_ID;
 
     if (strncmp(message, "AT",2) == 0) {
-        // i need to convert all symbols to 
-        // its a command message
-        printf("message before char update: %s\n",message);
+        // this is a lora command
         url_decode_inplace(message);
-        printf("message after char update: %s\n",message);
 
         entry_id = create_command(message);
+    } else if (strncmp(message, "SYS", 3) == 0) {
+        // this is a system command
+        url_decode_inplace(message);
+        // do somthing with the command
+        resolve_system_command(message);
     }
     else {
         entry_id = create_data_object(
@@ -234,8 +238,9 @@ static esp_err_t send_post_handler(httpd_req_t *req)
         );
     }
 
-    queue_send(entry_id, target);
-
+    if (entry_id != NO_ID) {
+        queue_send(entry_id, target);
+    }
 
     ESP_LOGI(TAG, "POST /send message: \"%s\"", message);
 
