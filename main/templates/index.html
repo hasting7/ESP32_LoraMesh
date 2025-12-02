@@ -12,42 +12,48 @@
     <h3>By: Ben Hastings</h3>
   </header>
 
-  <hr/>
-
-  <!-- Send Message Card -->
-  <form method="POST" action="/send">
-    <div class="form-row">
-      <label for="target">Target Node</label>
-      <select id="target" name="target"></select>
-    </div>
-
-    <div class="form-row">
-      <label for="message">Message</label>
-      <textarea id="message" name="message" placeholder="Enter Message Here..." required></textarea>
-    </div>
-
-    <div class="form-row form-row-actions">
-      <input type="submit" value="Send Message"/>
-    </div>
-  </form>
-
   <main id="layout">
-    <!-- CHAT CARD -->
-    <section id="chat-card" class="card">
+    <section class="card" id="message-card">
+      <div class="card-header">
+        <div>
+          <h2>Send Message</h2>
+          <p class="card-subtitle">Compose a broadcast, normal, or critical message.</p>
+        </div>
+      </div>
+
+      <form method="POST" action="/send" class="message-form">
+        <div class="form-row">
+          <label for="target">Target Node</label>
+          <select id="target" name="target"></select>
+        </div>
+
+        <div class="form-row">
+          <label for="message">Message</label>
+          <textarea id="message" name="message" placeholder="Enter Message Here..." required></textarea>
+        </div>
+
+        <div class="form-row form-row-actions">
+          <input type="submit" value="Send Message"/>
+        </div>
+      </form>
+    </section>
+
+    <section id="chat-card" class="card tall-card">
       <div class="card-header">
         <div>
           <h2>Chat</h2>
           <p class="card-subtitle">Broadcast, normal &amp; critical messages</p>
         </div>
         <div class="card-controls">
-          <label class="select-label" for="filter-peer">
-            Conversation with
-          </label>
-          <div class="select-shell">
-            <select id="filter-peer">
-              <option value="all" selected>Any node</option>
-            </select>
+          <div class="control-row">
+            <label class="select-label" for="filter-peer">Conversation with</label>
+            <div class="select-shell">
+              <select id="filter-peer">
+                <option value="all" selected>Any node</option>
+              </select>
+            </div>
           </div>
+          <button id="toggle-order" type="button" class="ghost-button">Newest at bottom</button>
         </div>
       </div>
 
@@ -55,16 +61,15 @@
       <div id="chat-empty" class="empty-state">No chat messages yet.</div>
     </section>
 
-    <!-- SYSTEM TRAFFIC CARD (full width under chat) -->
     <section id="system-card" class="card">
       <div class="card-header">
         <div>
-          <h2>System Traffic</h2>
+          <h2>System Messages</h2>
           <p class="card-subtitle">ACK, ping, maintenance &amp; command messages</p>
         </div>
       </div>
 
-      <div class="table-wrapper">
+      <div class="table-wrapper fixed-height">
         <table class="info-table wide">
           <thead>
             <tr>
@@ -91,8 +96,7 @@
       </div>
     </section>
 
-    <!-- NODES CARD -->
-    <section id="nodes-card" class="card">
+    <section id="nodes-card" class="card half-card">
       <div class="card-header">
         <div>
           <h2>Nodes</h2>
@@ -100,7 +104,7 @@
         </div>
       </div>
 
-      <div class="table-wrapper">
+      <div class="table-wrapper fixed-height small-table">
         <table class="info-table">
           <thead>
             <tr>
@@ -121,20 +125,19 @@
   </main>
 
   <script>
-    // === CONFIG ===
     const POLL_MS_MESSAGES = 1000;
     const POLL_MS_NODES    = 5000;
 
-    const CHAT_TYPES   = new Set([1, 2, 4]);       // BROADCAST, NORMAL, CRITICAL
-    const SYSTEM_TYPES = new Set([3, 5, 6, 7]);    // ACK, MAINT, PING, COMMAND
+    const CHAT_TYPES   = new Set([1, 2, 4]);
+    const SYSTEM_TYPES = new Set([3, 5, 6, 7]);
 
     let newestID = 0;
     const allMessages = [];
     const seenMessageIds = new Set();
     let ackedIds = new Set();
     let currentNodeAddr = null;
+    let chatNewestAtBottom = true;
 
-    // Persisted UI selections
     let selectedPeer   = 'all';
     let selectedTarget = '';
 
@@ -147,8 +150,6 @@
       6: "Ping",
       7: "Command",
     };
-
-    // ==== Helpers ====
 
     function esc(s) {
       let str = String(s ?? "");
@@ -191,11 +192,15 @@
       const d = new Date(tsSeconds * 1000);
       let h = d.getHours();
       let m = d.getMinutes();
-      let s = d.getSeconds();
       if (h < 10) h = "0" + h;
       if (m < 10) m = "0" + m;
-      if (s < 10) s = "0" + s;
-      return `${h}:${m}:${s}`;
+      return `${h}:${m}`;
+    }
+
+    function formatAgoFromEpoch(epochSeconds) {
+      const nowSec = Date.now() / 1000;
+      const delta = nowSec - epochSeconds;
+      return formatAgo(delta);
     }
 
     function formatAgo(seconds) {
@@ -218,15 +223,12 @@
 
     function isNum(x) { return typeof x === 'number' && Number.isFinite(x); }
 
-    // Conversation filter: when selectedPeer != "all", only show
-    // messages where (src == current && dst == peer) OR (src == peer && dst == current)
     function applyPeerFilter(list) {
       if (!list.length || selectedPeer === 'all') return list;
 
       const peer = String(selectedPeer);
 
       if (!currentNodeAddr) {
-        // fallback: anything involving that peer
         return list.filter(m =>
           String(m.origin)      === peer ||
           String(m.source)      === peer ||
@@ -257,8 +259,6 @@
       ackedIds = set;
     }
 
-    // ===== CHAT RENDERING =====
-
     function renderChat() {
       const listEl  = document.getElementById('chat-list');
       const emptyEl = document.getElementById('chat-empty');
@@ -275,12 +275,11 @@
       }
       emptyEl.style.display = 'none';
 
-      // Newest at TOP by timestamp
       chats.sort((a, b) => {
         const ta = getTimestampSeconds(a);
         const tb = getTimestampSeconds(b);
-        if (tb !== ta) return tb - ta;
-        return (b.id || 0) - (a.id || 0);
+        if (ta !== tb) return chatNewestAtBottom ? ta - tb : tb - ta;
+        return chatNewestAtBottom ? (a.id || 0) - (b.id || 0) : (b.id || 0) - (a.id || 0);
       });
 
       const frag = document.createDocumentFragment();
@@ -298,17 +297,20 @@
         const fromMe = me && origin === me;
         const toMe   = me && dest   === me;
 
-        const isAcked = ackedIds.has(String(m.id));
+        const acked = Number(m.ack_status) === 1 || ackedIds.has(String(m.id));
+
+        const msgRow = document.createElement('div');
+        msgRow.className = 'chat-row';
 
         const msgDiv = document.createElement('div');
         msgDiv.className = 'chat-msg';
 
         if (fromMe) {
+          msgRow.classList.add('align-right');
           msgDiv.classList.add('from-me');
-        } else if (toMe) {
-          msgDiv.classList.add('to-me');
         } else {
-          msgDiv.classList.add('third-party');
+          msgRow.classList.add('align-left');
+          msgDiv.classList.add('from-them');
         }
 
         const meta = document.createElement('div');
@@ -326,27 +328,31 @@
         const footer = document.createElement('div');
         footer.className = 'chat-footer';
 
+        const sender = document.createElement('span');
+        sender.className = 'chat-sender';
+        sender.textContent = fromMe ? 'Me' : `Node ${origin}`;
+        footer.appendChild(sender);
+
         const timeSpan = document.createElement('span');
         timeSpan.className = 'chat-timestamp';
         timeSpan.textContent = timeStr;
         footer.appendChild(timeSpan);
 
-        // Small ACK marker only for messages originating from this node
         if (fromMe) {
           const ackSpan = document.createElement('span');
-          ackSpan.className = 'chat-ack ' + (isAcked ? 'chat-ack-ok' : 'chat-ack-pending');
-          ackSpan.textContent = isAcked ? '✓' : '×';
+          ackSpan.className = 'chat-ack ' + (acked ? 'chat-ack-ok' : 'chat-ack-pending');
+          ackSpan.textContent = acked ? '✓' : '×';
           footer.appendChild(ackSpan);
         }
 
         msgDiv.appendChild(footer);
-        frag.appendChild(msgDiv);
+        msgRow.appendChild(msgDiv);
+        frag.appendChild(msgRow);
       }
 
       listEl.appendChild(frag);
+      listEl.scrollTop = chatNewestAtBottom ? listEl.scrollHeight : 0;
     }
-
-    // ===== SYSTEM TABLE RENDERING =====
 
     function renderSystem() {
       const tbody  = document.getElementById('system-tbody');
@@ -383,14 +389,13 @@
         const origin = String(m.origin);
         const dest   = String(m.destination);
 
-        const fromMe = me && origin === me;
-        const toMe   = me && dest   === me;
-
         const tr = document.createElement('tr');
-        if (fromMe) {
+        if (me && origin === me) {
           tr.classList.add('sys-from-me');
-        } else if (toMe) {
+        } else if (me && dest === me) {
           tr.classList.add('sys-to-me');
+        } else {
+          tr.classList.add('sys-neutral');
         }
 
         tr.innerHTML =
@@ -415,8 +420,6 @@
       tbody.appendChild(frag);
     }
 
-    // ===== NODES RENDERING =====
-
     function renderNodes(list) {
       const tbody      = document.getElementById('node-tbody');
       const empty      = document.getElementById('node-empty');
@@ -435,13 +438,11 @@
         empty.style.display = 'none';
       }
 
-      // Determine current node
       const current = list.find(n => n.current_node === 1);
       if (current) {
         currentNodeAddr = String(current.address);
       }
 
-      // Node table
       const nodeFrag = document.createDocumentFragment();
       list.sort((a, b) => a.last_connection - b.last_connection);
 
@@ -452,6 +453,10 @@
 
         const avgRssi = isNum(n.avg_rssi) ? n.avg_rssi.toFixed(1) : esc(n.avg_rssi);
         const avgSnr  = isNum(n.avg_snr)  ? n.avg_snr.toFixed(1)  : esc(n.avg_snr);
+        const lastConn = Number(n.last_connection);
+        const lastStr = Number.isFinite(lastConn)
+          ? formatAgoFromEpoch(lastConn)
+          : esc(n.last_connection);
 
         let status = "ERR";
         if (n.status === 0) {
@@ -469,22 +474,19 @@
           `<td>${avgRssi}</td>` +
           `<td>${avgSnr}</td>` +
           `<td>${status}</td>` +
-          `<td>${formatAgo(n.last_connection)}</td>`;
+          `<td>${lastStr}</td>`;
 
         nodeFrag.appendChild(tr);
       }
 
       tbody.appendChild(nodeFrag);
 
-      // Target node dropdown - no current node
       const currentTargetValue = selectedTarget || '';
 
       const targetFrag = document.createDocumentFragment();
       let hasPrevTarget = false;
 
       for (const n of list) {
-        // if (n.current_node === 1) continue; // skip current
-
         const opt = document.createElement('option');
         opt.value = String(n.address);
         opt.textContent = `${n.name ? n.name : 'Node'} — ${n.address}`;
@@ -497,15 +499,12 @@
 
       targetSel.appendChild(targetFrag);
 
-      if (currentTargetValue === '0') {
-        optBroadcast.selected = true;
-      } else if (!hasPrevTarget) {
-        ph.selected = true;
+      if (!hasPrevTarget && targetSel.options.length) {
+        targetSel.selectedIndex = 0;
       }
 
       selectedTarget = targetSel.value;
 
-      // Conversation filter dropdown
       const anyOpt = document.createElement('option');
       anyOpt.value = 'all';
       anyOpt.textContent = 'Any node';
@@ -532,12 +531,9 @@
         selectedPeer = 'all';
       }
 
-      // Re-render now that currentNodeAddr might have changed
       renderChat();
       renderSystem();
     }
-
-    // ===== POLLERS =====
 
     async function pollMessages() {
       const url = newestID
@@ -616,6 +612,15 @@
       if (targetSel) {
         targetSel.addEventListener('change', (e) => {
           selectedTarget = e.target.value;
+        });
+      }
+
+      const toggleButton = document.getElementById('toggle-order');
+      if (toggleButton) {
+        toggleButton.addEventListener('click', () => {
+          chatNewestAtBottom = !chatNewestAtBottom;
+          toggleButton.textContent = chatNewestAtBottom ? 'Newest at bottom' : 'Newest at top';
+          renderChat();
         });
       }
 
