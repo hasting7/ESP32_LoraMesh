@@ -9,6 +9,7 @@
 #include "data_table.h"
 #include "esp_log.h"
 
+#define BROADCAST_ID (0)
 NodeEntry *g_node_table = NULL;
 static SemaphoreHandle_t g_ntb_mutex;
 static const char *TAG = "NODE TABLE";
@@ -34,7 +35,7 @@ NodeEntry *create_node_object(int address) {
     new_entry->address.i_addr = address;
     int l = snprintf(new_entry->address.s_addr, sizeof new_entry->address.s_addr, "%u", (unsigned)address);
     new_entry->address.s_addr[l] = '\0';
-    new_entry->name[0] = '\0';
+
     // new nodes should inherit last connection time from parents
     time(&new_entry->last_connection);
     new_entry->ping_id = 0;
@@ -42,6 +43,9 @@ NodeEntry *create_node_object(int address) {
     if (g_address.i_addr != address) {
         new_entry->ping_id = create_data_object(NO_ID, MAINTENANCE, "ping", g_address.i_addr, address, g_address.i_addr, 0, 0, 0, 0);
     }
+
+    int len =sprintf(new_entry->name, "Node %d", address);
+    new_entry->name[len] = '\0';
 
     xSemaphoreTake(g_ntb_mutex, portMAX_DELAY);
 
@@ -64,31 +68,162 @@ NodeEntry *get_node_ptr(int address) {
 	return NULL;
 }
 
-// update the node collection given this new message
 int nodes_update(ID msg_id) {
-    // add node to table if doesn't exist
-    // update metrics
     DataEntry *data = hash_find(g_msg_table, msg_id);
+    if (!data) return 0;
 
-    src = (!data->src_node) ? data->origin_node : data->src_node;
-    NodeEntry *src_node = get_node_ptr(src);
-
-    NodeEntry *origin_node = get_node_ptr(data->origin_node);
-
-    if (!src_node) {
-        src_node = create_node_object(data->src_node);
+    // origin should never be broadcast
+    if (data->origin_node == BROADCAST_ID) {
+        printf("origin_node should not be 0\n");
+        return 0;
     }
+
+    ID src = data->src_node ? data->src_node : data->origin_node;
+
+    NodeEntry *origin_node = node_create_if_needed(data->origin_node);
+    NodeEntry *src_node    = node_create_if_needed(src);
+
     time(&origin_node->last_connection);
-    time(&src_node->last_connection);
     origin_node->status = ALIVE;
-    src_node->status = ALIVE;
-    // misses not really used rn
     origin_node->misses = 0;
-    src_node->misses = 0;
-    update_metrics(src_node, data->rssi, data->snr);
-    
+
+    if (src_node) {
+        time(&src_node->last_connection);
+        src_node->status = ALIVE;
+        src_node->misses = 0;
+        update_metrics(src_node, data->rssi, data->snr);
+    }
+
     return 1;
 }
+
+int gather_nodes(char *out_buffer) {
+    if (!out_buffer) {
+        printf("No buffer given\n");
+        return 0;
+    }
+    int count = 0;
+    char node_list_buffer[256] = { 0 };
+    int len = 0;
+    NodeEntry *walk = g_node_table;
+
+    // count the nodes in the table
+    while (walk) {
+        if ((walk->address.i_addr != g_address.i_addr) && (walk->address.i_addr != BROADCAST_ID)) {
+            len = strlcat(node_list_buffer, walk->address.s_addr, 256);
+            node_list_buffer[len++] = ':';
+            node_list_buffer[len] = '\0';
+            count++;
+        }
+        walk = walk->next;
+    }
+    if (count == 0) {
+        printf("No Nodes\n");
+        return 0;
+    }
+    node_list_buffer[--len] = '\0'; // remove last ','
+
+    return sprintf(out_buffer, "%d:%s", count, node_list_buffer);
+}
+
+// for any time a node is a src or origin run it though this function
+// it will do nothing if already in set but if its new it will return 1 and add node
+NodeEntry *node_create_if_needed(ID addr) {
+    if ((addr == BROADCAST_ID)) return NULL;
+
+    NodeEntry *node = get_node_ptr(addr);
+    if (!node) {
+        node = create_node_object(addr);
+    }
+    return node;
+}
+
+void attempt_to_reach_node(ID addr) {
+    NodeEntry *node = get_node_ptr(addr);
+    if (!node) return;
+
+    // if node is new attempt to ping node
+    node->status = UNKNOWN;
+    if (node->ping_task == NULL) {
+        xTaskCreate(
+            ping_suspect_node,
+            "pingSuspect",
+            2048,                // stack size
+            (void*)node,         // pvParameters
+            tskIDLE_PRIORITY+1,  // priority
+            &node->ping_task     // save handle so we don’t double-create
+        );
+    }
+}
+
+
+void ping_suspect_node(void *args) {
+    NodeEntry *node = (NodeEntry *)args;
+    if (!node) { vTaskDelete(NULL); return; }
+
+    DataEntry *ping_msg = hash_find(g_msg_table, node->ping_id);
+    if (!ping_msg) { 
+        ESP_LOGW(TAG, "no ping msg for node %d",node->address.i_addr);
+        vTaskDelete(NULL); return; 
+    }
+
+    ping_msg->ack_status = 0;
+
+    int delay = 1;
+    bool success = false;
+
+    for (int i = 0; i < 4; i++) {
+        // send ping
+        queue_send(node->ping_id, node->address.i_addr);
+
+        vTaskDelay(pdMS_TO_TICKS(delay * 1500));
+
+        delay <<= 1;
+
+        if (ping_msg->ack_status) {
+            success = true;
+            break;
+        } else {
+            node->misses += 1;
+        }
+    }
+
+    node->status = success ? ALIVE : DEAD;
+    node->ping_task = NULL;
+
+    vTaskDelete(NULL);
+}
+
+void node_status_task(void *args) {
+    TickType_t last = xTaskGetTickCount();
+    const TickType_t period = pdMS_TO_TICKS(15 * 1000);
+
+    for (;;) {
+        time_t now = time(NULL);
+        NodeEntry *node = g_node_table;
+
+        while (node) {
+            int delta = difftime(now, node->last_connection);
+
+            if (delta <= REQUEST_STATUS_TIME) {
+                node->status = ALIVE;
+                node->misses = 0;
+            } else if (delta > REQUEST_STATUS_TIME &&
+                       node->status == ALIVE) {
+                ESP_LOGW(TAG,
+                         "Node (%d) is suspected to be dead. pinging...",
+                         node->address.i_addr);
+                attempt_to_reach_node(node->address.i_addr);
+            }
+
+            node = node->next;
+        }
+
+        vTaskDelayUntil(&last, period);
+    }
+}
+
+
 
 void update_metrics(NodeEntry *node, int rssi, int snr) {
 	if (node->messages == 0) { // init

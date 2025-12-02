@@ -17,6 +17,7 @@
 #include "mesh_config.h"
 #include "node_globals.h"
 #include "node_table.h"
+#include "maintenance.h"
 
 static const char *TAG = "UART";
 
@@ -258,58 +259,6 @@ void uart_init(void) {
     MessageQueue = xQueueCreate(16, sizeof(ID));
 }
 
-void handle_maintenance_msg(ID msg_id) {
-    DataEntry *respond_to_msg = hash_find(g_msg_table, msg_id);
-    NodeEntry *this_node = get_node_ptr(g_address.i_addr);
-    printf("MAINTENANCE msg handling for ID=%d : \"%s\"\n", respond_to_msg->id, respond_to_msg->content);
-    // make sure msg is either broadcasted, or meant for this node
-    // also check to make sure message has not already been received ******* DO THIS LATER
-
-    if ((respond_to_msg->dst_node != 0) && (respond_to_msg->dst_node != g_address.i_addr)) {
-        printf("msg %d not for this node\n",respond_to_msg->id);
-        return;
-    }
-
-    // buffer for message to send back
-    char buffer[240];
-    int len = 0;
-
-    if (strncmp(respond_to_msg->content, "ping", 4) == 0) {
-        // get node info
-        // return back name of node
-        len = sprintf(buffer,"%s",(this_node->name[0] != '\0') ? this_node->name : "None");
-        printf("resp message (%d) \"%s\"", len, buffer);
-
-    } else if (respond_to_msg->ack_for) {
-        DataEntry *acked_msg = hash_find(g_msg_table, respond_to_msg->ack_for);
-        if (strncmp(acked_msg->content, "ping", 4) == 0) {
-            sscanf(respond_to_msg->content, "%31s", this_node->name);
-            this_node->name[31] = '\0';
-        }
-    }
-
-    // branch based on what kinda maintenace
-    if (strncmp(respond_to_msg->content, "discovery", 9) == 0) {
-        // recivce discovery command
-
-    } else if (respond_to_msg->ack_for) {
-        // if msg is resposne to a discovery node
-        DataEntry *acked_msg = hash_find(g_msg_table, respond_to_msg->ack_for);
-        // if it is the discovery message then deal with it
-        if (strncmp(acked_msg->content, "discovery", 9) == 0) {
-            // should be a list of node ids {count},id,id,id
-
-        }
-    }
-
-    
-    if (len) {
-        // only send a response message using buffer IF len is not 0
-        ID response_msg = create_data_object(NO_ID, MAINTENANCE, buffer, g_address.i_addr, respond_to_msg->src_node, g_address.i_addr, 0, 0, 0, msg_id);
-        queue_send(response_msg, respond_to_msg->src_node);
-    }
-}
-
 static void rcv_handler_task(void *arg) {
     char line[256];
     for (;;) {
@@ -319,8 +268,6 @@ static void rcv_handler_task(void *arg) {
             char data[256];
             if (parse_rcv_line(line, &from, &len, data, sizeof(data), &origin, &dest, &step, &msg_type, &id, &ack_for, &rssi, &snr)) {
 
-                // update node
-                nodes_update(id);
 
 
                 // check to see if id already exists.
@@ -332,8 +279,11 @@ static void rcv_handler_task(void *arg) {
                     printf("msg with id=%d already exists.\n\tExisting content = \"%s\"\n\tNew content = \"%s\"\n",id, existing->content, data);
                     rcv_msg_id = existing->id;
                 } else {
-                    rcv_msg_id = create_data_object(id, msg_type, data, from, dest, origin, step + 1, rssi, snr, NO_ID);
+                    rcv_msg_id = create_data_object(id, msg_type, data, from, dest, origin, step + 1, rssi, snr, ack_for);
                 }
+
+                // update node given newest message
+                nodes_update(rcv_msg_id);
 
                 if (msg_type == MAINTENANCE) {
                     handle_maintenance_msg(rcv_msg_id);
@@ -426,73 +376,3 @@ void message_sending_task(void *args) {
     vTaskDelete(NULL);
 }
 
-void ping_suspect_node(void *args) {
-    NodeEntry *node = (NodeEntry *)args;
-    if (!node) { vTaskDelete(NULL); return; }
-
-    DataEntry *ping_msg = hash_find(g_msg_table, node->ping_id);
-    if (!ping_msg) { 
-        ESP_LOGW(TAG, "no ping msg for node %d",node->address.i_addr);
-        vTaskDelete(NULL); return; 
-    }
-
-    ping_msg->ack_status = 0;
-
-    int delay = 1;
-    bool success = false;
-
-    for (int i = 0; i < 4; i++) {
-        // send ping
-        queue_send(node->ping_id, node->address.i_addr);
-
-        vTaskDelay(pdMS_TO_TICKS(delay * 1500));
-
-        delay <<= 1;
-
-        if (ping_msg->ack_status) {
-            success = true;
-            break;
-        } else {
-            node->misses += 1;
-        }
-    }
-
-    node->status = success ? ALIVE : DEAD;
-    node->ping_task = NULL;
-
-    vTaskDelete(NULL);
-}
-
-void node_status_task(void *args) {
-    TickType_t last = xTaskGetTickCount();
-
-    for (;;) {
-        NodeEntry *node = g_node_table;
-        while (node) {
-            int delta = difftime(time(NULL), node->last_connection);
-            if (delta <= REQUEST_STATUS_TIME) {
-                // last connection was within the minute
-                node->status = ALIVE;
-                node->misses = 0;
-            } else if ((delta > REQUEST_STATUS_TIME) && (node->status == ALIVE)) {
-                ESP_LOGW(TAG, "Node (%d) is suspected to be dead. pinging...",node->address.i_addr);
-                // it was alive but last connection was over a minute ago.
-                // mark as suspect then ping_suspect_node
-                node->status = UNKNOWN;
-                if (node->ping_task == NULL) {
-                    xTaskCreate(
-                        ping_suspect_node,
-                        "pingSuspect",
-                        2048,                // stack size
-                        (void*)node,         // pvParameters
-                        tskIDLE_PRIORITY+1,  // priority
-                        &node->ping_task     // save handle so we don’t double-create
-                    );
-                }
-            }
-            node = node->next;
-        }
-
-        vTaskDelayUntil(&last, pdMS_TO_TICKS(15 * 1000));   // wait 15 seconcds
-    }
-}

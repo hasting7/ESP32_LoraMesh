@@ -7,6 +7,7 @@
 #include "freertos/task.h"
 
 #include "node_globals.h"
+#include "lora_uart.h"
 
 typedef enum {
         ALIVE,
@@ -39,5 +40,11 @@ NodeEntry *create_node_object(int);
 void update_metrics(NodeEntry *node, int rssi, int snr);
 int format_node_as_json(NodeEntry *, char *, int);
 int nodes_update(ID msg_id);
+int gather_nodes(char *out_buffer);
+NodeEntry *node_create_if_needed(ID addr);
+void attempt_to_reach_node(ID addr);
+void node_status_task(void *args);
+void ping_suspect_node(void *args);
+void send_ping_response(ID origin, ID target, ID ack_for_msg);
 
 #endif // NODE_TABLE_H
