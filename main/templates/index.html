@@ -443,7 +443,14 @@
       }
 
       const nodeFrag = document.createDocumentFragment();
-      list.sort((a, b) => a.last_connection - b.last_connection);
+      const nowSec = Date.now() / 1000;
+      list.sort((a, b) => {
+        const aConn = Number(a.last_connection);
+        const bConn = Number(b.last_connection);
+        const aAge = Number.isFinite(aConn) ? nowSec - aConn : Infinity;
+        const bAge = Number.isFinite(bConn) ? nowSec - bConn : Infinity;
+        return aAge - bAge;
+      });
 
       for (const n of list) {
         const tr = document.createElement('tr');
@@ -485,17 +492,23 @@
       const targetFrag = document.createDocumentFragment();
       let hasPrevTarget = false;
 
-      const broadcastOpt = document.createElement('option');
-      broadcastOpt.value = '0';
-      broadcastOpt.textContent = 'Broadcast — 0';
-      if (currentTargetValue && currentTargetValue === '0') {
-        broadcastOpt.selected = true;
-        hasPrevTarget = true;
-      }
-      targetFrag.appendChild(broadcastOpt);
+      const targetableNodes = list.filter(n => n.current_node !== 1);
+      const allowBroadcast = targetableNodes.length === 0;
 
-      for (const n of list) {
-        if (n.current_node === 1) continue;
+      if (allowBroadcast) {
+        const broadcastOpt = document.createElement('option');
+        broadcastOpt.value = '0';
+        broadcastOpt.textContent = 'Broadcast — 0';
+        if (currentTargetValue && currentTargetValue === '0') {
+          broadcastOpt.selected = true;
+          hasPrevTarget = true;
+        }
+        targetFrag.appendChild(broadcastOpt);
+      } else if (currentTargetValue === '0') {
+        selectedTarget = '';
+      }
+
+      for (const n of targetableNodes) {
         const opt = document.createElement('option');
         opt.value = String(n.address);
         opt.textContent = `${n.name ? n.name : 'Node'} — ${n.address}`;

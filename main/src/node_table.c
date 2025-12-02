@@ -213,8 +213,15 @@ int format_node_as_json(NodeEntry *data, char *out, int buff_size) {
     // name, address, avg_rssi, avg_snr, messages
     int n = sprintf(
         out,
-        "{\"name\" : \"%s\", \"address\" : \"%s\", \"avg_rssi\" : %.2f, \"avg_snr\" : %.2f, \"messages\" : %d, \"current_node\" : %d, \"last_connection\" : %.2f, \"status\" : %d}",
-        (data->name[0] != '\0') ? data->name : "(null)", data->address.s_addr, data->avg_rssi, data->avg_snr, data->messages, data->address.i_addr == g_address.i_addr, difftime(time(NULL), data->last_connection), data->status
+        "{\"name\" : \"%s\", \"address\" : \"%s\", \"avg_rssi\" : %.2f, \"avg_snr\" : %.2f, \"messages\" : %d, \"current_node\" : %d, \"last_connection\" : %.0f, \"status\" : %d}",
+        (data->name[0] != '\0') ? data->name : "(null)",
+        data->address.s_addr,
+        data->avg_rssi,
+        data->avg_snr,
+        data->messages,
+        data->address.i_addr == g_address.i_addr,
+        difftime(data->last_connection, (time_t)0),
+        data->status
     );
     out[buff_size - 1] = '\0';
     return n;
