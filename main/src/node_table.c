@@ -211,6 +211,10 @@ void update_metrics(NodeEntry *node, int rssi, int snr) {
 
 int format_node_as_json(NodeEntry *data, char *out, int buff_size) {
     // name, address, avg_rssi, avg_snr, messages
+    time_t now = time(NULL);
+    double seconds_since_last = difftime(now, data->last_connection);
+    if (seconds_since_last < 0) seconds_since_last = 0;
+
     int n = sprintf(
         out,
         "{\"name\" : \"%s\", \"address\" : \"%s\", \"avg_rssi\" : %.2f, \"avg_snr\" : %.2f, \"messages\" : %d, \"current_node\" : %d, \"last_connection\" : %.0f, \"status\" : %d}",
@@ -220,7 +224,7 @@ int format_node_as_json(NodeEntry *data, char *out, int buff_size) {
         data->avg_snr,
         data->messages,
         data->address.i_addr == g_address.i_addr,
-        difftime(data->last_connection, (time_t)0),
+        seconds_since_last,
         data->status
     );
     out[buff_size - 1] = '\0';
