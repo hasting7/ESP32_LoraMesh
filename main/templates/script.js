@@ -1,270 +1,160 @@
-// === CONFIG ===
-const POLL_MS_MESSAGES = 1000;
-const POLL_MS_NODES = 5000;
-
-const CHAT_TYPES = new Set([1, 2, 4]);       // BROADCAST, NORMAL, CRITICAL
-const SYSTEM_TYPES = new Set([3, 5, 6, 7]);  // ACK, MAINT, PING, COMMAND
-
-let newestID = 0;
-const allMessages = [];
-const seenMessageIds = new Set();
 let currentNodeAddr = null;
+let allMessages = [];
 
-let selectedPeer = 'all';
-let ackedIds = new Set();
-
-// === HELPERS ===
-function esc(str) {
-  return String(str ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
-
-function getTimestampSeconds(msg) {
-  if (typeof msg.timestamp === 'number') return msg.timestamp;
-  const ts = Date.parse(msg.timestamp);
-  return isFinite(ts) ? ts / 1000 : 0;
-}
-
-function formatTimeShort(tsSeconds) {
-  const d = new Date(tsSeconds * 1000);
-  let h = d.getHours();
-  let m = d.getMinutes();
-  if (h < 10) h = "0" + h;
-  if (m < 10) m = "0" + m;
-  return `${h}:${m}`;
-}
-
-
-function formatAgo(tsSeconds) {
-  const now = Math.floor(Date.now() / 1000);
-  const diff = now - tsSeconds;
-
-  const abs = Math.abs(diff);
-  const sec = abs % 60;
-  const min = Math.floor(abs / 60) % 60;
-  const hr  = Math.floor(abs / 3600);
-  const parts = [];
-
-  if (hr) parts.push(`${hr} hr${hr !== 1 ? 's' : ''}`);
-  if (min || !hr) parts.push(`${min} min${min !== 1 ? 's' : ''}`);
-  if (sec && !hr && !min) parts.push(`${sec} sec${sec !== 1 ? 's' : ''}`);
-
-  return diff >= 0 ? `${parts.join(' ')} ago` : `in ${parts.join(' ')}`;
-}
-
-function isNum(x) {
-  return typeof x === 'number' && isFinite(x);
-}
-
-const MSG_TYPE_LABEL = {
-  1: "Broadcast",
-  2: "Normal",
-  3: "Ack",
-  4: "Critical",
-  5: "Maintenance",
-  6: "Ping",
-  7: "Command"
-};
-
-// === RENDER CHAT ===
 function renderChat() {
-  const list = document.getElementById('chat-list');
-  const empty = document.getElementById('chat-empty');
-  if (!list) return;
+  const listEl = document.getElementById("chat-list");
+  const emptyEl = document.getElementById("chat-empty");
+  listEl.innerHTML = "";
 
-  let chats = allMessages.filter(m => CHAT_TYPES.has(Number(m.message_type)));
-  if (selectedPeer !== 'all' && currentNodeAddr) {
-    chats = chats.filter(m =>
-      (m.source === currentNodeAddr && m.destination === selectedPeer) ||
-      (m.source === selectedPeer && m.destination === currentNodeAddr)
-    );
-  }
+  let chats = allMessages.filter((m) =>
+    [1, 2, 4].includes(Number(m.message_type))
+  );
 
-  list.innerHTML = '';
   if (!chats.length) {
-    empty.style.display = 'block';
+    emptyEl.style.display = "";
     return;
   }
-  empty.style.display = 'none';
+  emptyEl.style.display = "none";
 
-  for (const msg of chats.reverse()) {
-    const isFromMe = msg.origin === currentNodeAddr;
-    const typeLabel = MSG_TYPE_LABEL[msg.message_type] || 'Unknown';
-    const div = document.createElement('div');
-    div.className = `chat-msg ${isFromMe ? 'from-me' : 'other'}`;
-    div.innerHTML = `
-      <div class="chat-meta">
-        <span class="pill pill-type-${msg.message_type}">${typeLabel}</span>
-        <span class="chat-route">${msg.source} → ${msg.destination}</span>
-      </div>
-      <div class="chat-content">${esc(msg.content)}</div>
-      <div class="chat-footer">${formatTimeShort(getTimestampSeconds(msg))}</div>
-    `;
-    list.appendChild(div);
+  chats.sort((a, b) => {
+    return getTime(a.timestamp) - getTime(b.timestamp);
+  });
+
+  for (const m of chats) {
+    const isMe = m.origin === currentNodeAddr;
+    const div = document.createElement("div");
+    div.className = "chat-msg " + (isMe ? "right" : "left");
+
+    const meta = document.createElement("div");
+    meta.className = "chat-meta";
+    meta.textContent = `${m.origin} → ${m.destination}`;
+    div.appendChild(meta);
+
+    const content = document.createElement("div");
+    content.textContent = m.content || "";
+    div.appendChild(content);
+
+    const footer = document.createElement("div");
+    footer.className = "chat-footer";
+    footer.textContent = formatTime(getTime(m.timestamp));
+    div.appendChild(footer);
+
+    listEl.appendChild(div);
   }
 }
 
-// === RENDER SYSTEM TABLE ===
 function renderSystem() {
-  const tbody = document.getElementById('system-tbody');
-  const empty = document.getElementById('system-empty');
-  if (!tbody) return;
+  const tbody = document.getElementById("system-tbody");
+  const empty = document.getElementById("system-empty");
+  tbody.innerHTML = "";
 
-  tbody.innerHTML = '';
-  let rows = allMessages.filter(m => SYSTEM_TYPES.has(Number(m.message_type)));
-  if (!rows.length) {
-    empty.style.display = 'block';
+  let sys = allMessages.filter((m) =>
+    [3, 5, 6, 7].includes(Number(m.message_type))
+  );
+
+  if (!sys.length) {
+    empty.style.display = "";
     return;
   }
-  empty.style.display = 'none';
+  empty.style.display = "none";
 
-  for (const m of rows.reverse()) {
-    const tr = document.createElement('tr');
-    const origin = String(m.origin);
-    const dest = String(m.destination);
-    const me = String(currentNodeAddr);
+  sys.sort((a, b) => getTime(b.timestamp) - getTime(a.timestamp));
 
-    if (origin === me) {
-      tr.classList.add('sys-from-me');
-    } else if (dest === me) {
-      tr.classList.add('sys-to-me');
+  for (const m of sys) {
+    const tr = document.createElement("tr");
+
+    if (m.origin === currentNodeAddr) {
+      tr.className = "sys-from-me";
+    } else if (m.destination === currentNodeAddr) {
+      tr.className = "sys-to-me";
     } else {
-      tr.classList.add('sys-other');
+      tr.className = "sys-neutral";
     }
 
     tr.innerHTML = `
-      <td>${formatTimeShort(getTimestampSeconds(m))}</td>
-      <td>${esc(m.id)}</td>
-      <td>${esc(MSG_TYPE_LABEL[m.message_type] || m.message_type)}</td>
-      <td>${esc(m.origin)}</td>
-      <td>${esc(m.source)}</td>
-      <td>${esc(m.destination)}</td>
-      <td>${esc(m.steps)}</td>
-      <td>${esc(m.length)}</td>
-      <td>${esc(m.rssi)}</td>
-      <td>${esc(m.snr)}</td>
-      <td>${esc(m.stage)}</td>
-      <td>${esc(m.transfer_status)}</td>
-      <td>${esc(m.ack_status)}</td>
-      <td>${esc(m.ack_for)}</td>
-      <td>${esc(m.content)}</td>
+      <td>${formatTime(getTime(m.timestamp))}</td>
+      <td>${m.id}</td>
+      <td>${m.message_type}</td>
+      <td>${m.origin}</td>
+      <td>${m.source}</td>
+      <td>${m.destination}</td>
+      <td>${m.steps}</td>
+      <td>${m.length}</td>
+      <td>${m.rssi}</td>
+      <td>${m.snr}</td>
+      <td>${m.stage}</td>
+      <td>${m.transfer_status}</td>
+      <td>${m.ack_status}</td>
+      <td>${m.ack_for}</td>
+      <td>${m.content || ""}</td>
     `;
     tbody.appendChild(tr);
   }
 }
 
-// === RENDER NODES ===
 function renderNodes(nodes) {
-  const tbody = document.getElementById('node-tbody');
-  const empty = document.getElementById('node-empty');
-  const targetSel = document.getElementById('target');
-  const peerSel = document.getElementById('filter-peer');
+  const tbody = document.getElementById("node-tbody");
+  tbody.innerHTML = "";
 
-  tbody.innerHTML = '';
-  targetSel.innerHTML = '';
-  peerSel.innerHTML = '';
-
-  if (!nodes.length) {
-    empty.style.display = 'block';
-    return;
-  }
-  empty.style.display = 'none';
-
-  const current = nodes.find(n => n.current_node === 1);
-  if (current) currentNodeAddr = String(current.address);
-
-  // target node select (default to 0 = broadcast)
-  const optDefault = document.createElement('option');
-  optDefault.value = "0";
-  optDefault.textContent = "Broadcast";
-  targetSel.appendChild(optDefault);
+  const current = nodes.find((n) => n.current_node === 1);
+  currentNodeAddr = current ? current.address : null;
 
   for (const n of nodes) {
-    const tr = document.createElement('tr');
-    if (n.current_node === 1) tr.classList.add('this-node');
-
+    const tr = document.createElement("tr");
+    const secondsAgo = getNow() - n.last_connection;
     tr.innerHTML = `
-      <td>${esc(n.address)}</td>
-      <td>${esc(n.name)}</td>
-      <td>${esc(n.messages ?? 0)}</td>
-      <td>${isNum(n.avg_rssi) ? n.avg_rssi.toFixed(1) : '-'}</td>
-      <td>${isNum(n.avg_snr) ? n.avg_snr.toFixed(1) : '-'}</td>
-      <td>${n.status === 0 ? 'Alive' : (n.status === 1 ? 'Dead' : 'Unknown')}</td>
-      <td>${formatAgo((Date.now() / 1000) - (n.last_connection ?? 0))}</td>
+      <td>${n.address}</td>
+      <td>${n.name}</td>
+      <td>${n.messages}</td>
+      <td>${n.avg_rssi}</td>
+      <td>${n.avg_snr}</td>
+      <td>${n.status === 0 ? "Alive" : "Dead"}</td>
+      <td>${Math.round(secondsAgo)} sec ago</td>
     `;
     tbody.appendChild(tr);
-
-    // Add to selects
-    const tOpt = document.createElement('option');
-    tOpt.value = String(n.address);
-    tOpt.textContent = `${n.name} — ${n.address}`;
-    targetSel.appendChild(tOpt);
-
-    const pOpt = tOpt.cloneNode(true);
-    peerSel.appendChild(pOpt);
   }
 
   renderChat();
   renderSystem();
 }
 
-// === POLLING ===
-async function pollMessages() {
-  const url = newestID
-    ? `/api/messages?since_id=${encodeURIComponent(newestID)}`
-    : `/api/messages`;
-
-  try {
-    const res = await fetch(url);
-    if (!res.ok) return;
-    const msgs = await res.json();
-    for (const m of msgs) {
-      if (seenMessageIds.has(m.id)) continue;
-      seenMessageIds.add(m.id);
-      allMessages.push(m);
-      newestID = Math.max(newestID, m.id);
-    }
-    renderChat();
-    renderSystem();
-  } catch (e) {
-    console.warn("Failed to poll messages:", e);
-  }
+function formatTime(ts) {
+  const d = new Date(ts * 1000);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(
+    d.getMinutes()
+  ).padStart(2, "0")}`;
 }
 
+function getTime(ts) {
+  return typeof ts === "number" ? ts : Date.parse(ts) / 1000;
+}
+
+function getNow() {
+  return Date.now() / 1000;
+}
+
+// Example polling logic
 async function pollNodes() {
   try {
     const res = await fetch("/api/nodes");
-    if (!res.ok) return;
     const data = await res.json();
-    if (Array.isArray(data)) renderNodes(data);
+    renderNodes(data);
   } catch (e) {
-    console.warn("Failed to poll nodes:", e);
+    console.error("Failed to poll nodes:", e);
   }
 }
 
-// === INIT ===
-function init() {
-  document.getElementById('filter-peer')?.addEventListener('change', e => {
-    selectedPeer = e.target.value || 'all';
+async function pollMessages() {
+  try {
+    const res = await fetch("/api/messages");
+    const data = await res.json();
+    allMessages = data;
     renderChat();
     renderSystem();
-  });
-
-  document.getElementById('send-form')?.addEventListener('submit', e => {
-    const target = document.getElementById('target');
-    if (target && !target.value) {
-      target.value = "0"; // force broadcast
-    }
-  });
-
-  pollMessages();
-  pollNodes();
-  setInterval(pollMessages, POLL_MS_MESSAGES);
-  setInterval(pollNodes, POLL_MS_NODES);
+  } catch (e) {
+    console.error("Failed to poll messages:", e);
+  }
 }
 
-document.addEventListener('DOMContentLoaded', init);
+setInterval(pollMessages, 2000);
+setInterval(pollNodes, 5000);

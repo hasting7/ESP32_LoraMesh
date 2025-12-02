@@ -1,10 +1,10 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>ESP32 LoRa Mesh Network Interface</title>
-  <link rel="stylesheet" href="style.css"/>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ESP32 LoRa Mesh Interface</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <header id="header">
@@ -12,92 +12,97 @@
     <h3>By: Ben Hastings</h3>
   </header>
 
-  <div class="top-row">
-    <div class="form-container">
-      <form id="send-form" method="POST" action="/send">
-        <div class="form-row">
-          <label for="target">Target Node</label>
-          <select id="target" name="target"></select>
-        </div>
+  <main id="layout">
+    <!-- Top Row: Form + Chat -->
+    <div class="top-row">
+      <!-- Message Form -->
+      <section id="form-card" class="card">
+        <form id="message-form" method="POST" action="/send">
+          <div class="form-row">
+            <label for="target">Target Node</label>
+            <select id="target" name="target"></select>
+          </div>
+          <div class="form-row">
+            <label for="message">Message</label>
+            <textarea id="message" name="message" placeholder="Enter Message Here..." required></textarea>
+          </div>
+          <div class="form-row form-row-actions">
+            <input type="submit" value="Send Message" />
+          </div>
+        </form>
+      </section>
 
-        <div class="form-row">
-          <label for="message">Message</label>
-          <textarea id="message" name="message" placeholder="Enter Message Here..." required></textarea>
-        </div>
-
-        <div class="form-row form-row-actions">
-          <input type="submit" value="Send Message"/>
-        </div>
-      </form>
-    </div>
-
-    <div class="chat-container">
-      <section id="chat-card">
+      <!-- Chat Interface -->
+      <section id="chat-card" class="card">
         <div class="card-header">
           <div>
             <h2>Chat</h2>
             <p class="card-subtitle">Broadcast, normal & critical messages</p>
           </div>
-
-          <div class="select-shell">
-            <label class="select-label" for="filter-peer">Conversation with</label>
-            <select id="filter-peer">
-              <option value="all">Any node</option>
-            </select>
-          </div>
         </div>
-
-        <div id="chat-list"></div>
-        <div id="chat-empty" class="chat-empty">No messages.</div>
+        <div id="chat-list" class="chat-list"></div>
+        <div id="chat-empty" class="empty-state">No chat messages yet.</div>
       </section>
     </div>
-  </div>
 
-  <section id="system-card" class="card" style="max-width:1200px;margin:0 auto 20px;">
-    <div class="card-header">
-      <div>
+    <!-- System Table -->
+    <section id="system-card" class="card">
+      <div class="card-header">
         <h2>System Traffic</h2>
         <p class="card-subtitle">ACK, ping, maintenance & command messages</p>
       </div>
-    </div>
+      <div class="table-wrapper">
+        <table class="info-table wide">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>ID</th>
+              <th>Type</th>
+              <th>Origin</th>
+              <th>Source</th>
+              <th>Destination</th>
+              <th>Steps</th>
+              <th>Length</th>
+              <th>RSSI</th>
+              <th>SNR</th>
+              <th>Stage</th>
+              <th>Transfer</th>
+              <th>Ack Status</th>
+              <th>Ack For</th>
+              <th>Content</th>
+            </tr>
+          </thead>
+          <tbody id="system-tbody"></tbody>
+        </table>
+        <div id="system-empty" class="empty-state small">No system messages.</div>
+      </div>
+    </section>
 
-    <div class="table-wrapper">
-      <table class="info-table">
-        <thead>
-          <tr>
-            <th>Time</th><th>ID</th><th>Type</th><th>Origin</th><th>Source</th>
-            <th>Destination</th><th>Steps</th><th>Length</th><th>RSSI</th>
-            <th>SNR</th><th>Stage</th><th>Transfer</th><th>Ack Status</th>
-            <th>Ack For</th><th>Content</th>
-          </tr>
-        </thead>
-        <tbody id="system-tbody"></tbody>
-      </table>
-      <div id="system-empty" class="empty-state small">No system messages.</div>
-    </div>
-  </section>
-
-  <section id="nodes-card" class="card" style="max-width:1200px;margin:0 auto 20px;">
-    <div class="card-header">
-      <div>
+    <!-- Node Table -->
+    <section id="nodes-card" class="card half-width">
+      <div class="card-header">
         <h2>Nodes</h2>
         <p class="card-subtitle">Status, message counts & link quality</p>
       </div>
-    </div>
-
-    <div class="table-wrapper">
-      <table class="info-table">
-        <thead>
-          <tr>
-            <th>Addr</th><th>Name</th><th># Msgs</th><th>Avg RSSI</th>
-            <th>Avg SNR</th><th>Status</th><th>Last Connection</th>
-          </tr>
-        </thead>
-        <tbody id="node-tbody"></tbody>
-      </table>
-      <div id="node-empty" class="empty-state small">No nodes seen yet.</div>
-    </div>
-  </section>
+      <div class="table-wrapper">
+        <table class="info-table">
+          <thead>
+            <tr>
+              <th>Addr</th>
+              <th>Name</th>
+              <th># Msgs</th>
+              <th>Avg RSSI</th>
+              <th>Avg SNR</th>
+              <th>Status</th>
+              <th>Last Connection</th>
+            </tr>
+          </thead>
+          <tbody id="node-tbody"></tbody>
+        </table>
+        <div id="node-empty" class="empty-state small">No nodes seen yet.</div>
+      </div>
+    </section>
+  </main>
 
   <script src="script.js"></script>
 </body>
