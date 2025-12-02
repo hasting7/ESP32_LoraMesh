@@ -155,8 +155,10 @@ void resolve_system_command(char *cmd_buffer) {
     char name[32];
     if (sscanf(cmd_buffer, "SYS+NAME=%31s",name)) {
         name[31] = '\0';
+        int len = strlen(name);
         printf("New name is %s\n",name);
         NodeEntry *node = get_node_ptr(g_address.i_addr);
         strlcpy(node->name, name, 32);
+        node->name[len] = '\0';
     }
 }
