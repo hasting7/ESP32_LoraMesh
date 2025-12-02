@@ -61,7 +61,7 @@ ID create_data_object(int id, MessageType type, char *content, int src, int dst,
     new_entry->length = (int) len;
     if (id == NO_ID) {
         do {
-            new_entry->id = rand_id();
+            new_entry->id = rand_msg_id();
         } while (hash_find(g_msg_table, new_entry->id));
     } else {
         new_entry->id = id;

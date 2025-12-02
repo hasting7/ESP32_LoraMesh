@@ -14,3 +14,4 @@ extern Address g_address;
 extern HashTable *g_msg_table;
 
 uint16_t rand_id(void);
+uint16_t rand_msg_id(void);

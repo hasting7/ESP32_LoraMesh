@@ -9,6 +9,15 @@
 Address g_address = {0};
 HashTable *g_msg_table = NULL;
 
+uint16_t rand_msg_id(void) {
+    uint16_t x;
+    do {
+        x = (uint16_t)esp_random();
+    } while (x == 0);
+    return x;
+}
+
+
 uint16_t rand_id(void) {
     const uint32_t m = 9000; // (10000 - 1000) no leading 0s
     const uint32_t limit = UINT32_MAX - (UINT32_MAX % m);
