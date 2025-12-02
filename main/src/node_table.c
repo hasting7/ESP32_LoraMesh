@@ -97,35 +97,6 @@ int nodes_update(ID msg_id) {
     return 1;
 }
 
-int gather_nodes(char *out_buffer) {
-    if (!out_buffer) {
-        printf("No buffer given\n");
-        return 0;
-    }
-    int count = 0;
-    char node_list_buffer[256] = { 0 };
-    int len = 0;
-    NodeEntry *walk = g_node_table;
-
-    // count the nodes in the table
-    while (walk) {
-        if ((walk->address.i_addr != g_address.i_addr) && (walk->address.i_addr != BROADCAST_ID)) {
-            len = strlcat(node_list_buffer, walk->address.s_addr, 256);
-            node_list_buffer[len++] = ':';
-            node_list_buffer[len] = '\0';
-            count++;
-        }
-        walk = walk->next;
-    }
-    if (count == 0) {
-        printf("No Nodes\n");
-        return 0;
-    }
-    node_list_buffer[--len] = '\0'; // remove last ','
-
-    return sprintf(out_buffer, "%d:%s", count, node_list_buffer);
-}
-
 // for any time a node is a src or origin run it though this function
 // it will do nothing if already in set but if its new it will return 1 and add node
 NodeEntry *node_create_if_needed(ID addr) {

@@ -1,6 +1,21 @@
 #include "maintenance.h"
 
 static void parse_new_nodes(const char *content);
+static int gather_nodes(char *out_buffer);
+
+/*
+
+PING
+    - request node to ping back
+PING RESPONSE
+    - send back node name
+
+DISCOVERY 
+    - request for neighbor nodes node table
+DISCOVERY RESPONSE
+    - return back a list of all nodes in node table
+
+*/
 
 void handle_maintenance_msg(ID msg_id) {
     DataEntry *respond_to_msg = hash_find(g_msg_table, msg_id);
@@ -16,6 +31,8 @@ void handle_maintenance_msg(ID msg_id) {
     // buffer for message to send back
     char buffer[240];
     int len = 0;
+
+    // PING
 
     if (strncmp(respond_to_msg->content, "ping", 4) == 0) {
         NodeEntry *this_node = get_node_ptr(g_address.i_addr);
@@ -39,6 +56,8 @@ void handle_maintenance_msg(ID msg_id) {
         }
     }
 
+    // MAINTENANCE
+
     // branch based on what kinda maintenace
     if (strncmp(respond_to_msg->content, "discovery", 9) == 0) {
         len = gather_nodes(buffer);
@@ -61,6 +80,33 @@ void handle_maintenance_msg(ID msg_id) {
         ID response_msg = create_data_object(NO_ID, MAINTENANCE, buffer, g_address.i_addr, respond_to_msg->src_node, g_address.i_addr, 0, 0, 0, msg_id);
         queue_send(response_msg, respond_to_msg->src_node);
     }
+}
+
+
+static int gather_nodes(char *out_buffer) {
+    if (!out_buffer) {
+        printf("No buffer given\n");
+        return 0;
+    }
+    int count = 0;
+    char node_list_buffer[256] = { 0 };
+    int len = 0;
+    NodeEntry *walk = g_node_table;
+
+    while (walk) {
+        len = strlcat(node_list_buffer, walk->address.s_addr, 256);
+        node_list_buffer[len++] = ':';
+        node_list_buffer[len] = '\0';
+        count++;
+        walk = walk->next;
+    }
+    if (count == 0) {
+        printf("No Nodes\n");
+        return 0;
+    }
+    node_list_buffer[--len] = '\0'; // remove last ','
+
+    return sprintf(out_buffer, "%d:%s", count, node_list_buffer);
 }
 
 
