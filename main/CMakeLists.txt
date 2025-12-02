@@ -17,5 +17,4 @@ idf_component_register(
     EMBED_FILES 
         "templates/style.css"
         "templates/index.html"
-        "templates/script.js"
 )
