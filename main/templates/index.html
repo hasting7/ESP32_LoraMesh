@@ -4,7 +4,7 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>ESP32 LoRa Mesh Network Interface</title>
-  <link rel="stylesheet" href="/style.css"/>
+  <link rel="stylesheet" href="style.css"/>
 </head>
 <body>
   <header id="header">
@@ -12,615 +12,93 @@
     <h3>By: Ben Hastings</h3>
   </header>
 
-  <hr/>
-
-  <!-- Send Message Card -->
-  <form method="POST" action="/send">
-    <div class="form-row">
-      <label for="target">Target Node</label>
-      <select id="target" name="target"></select>
-    </div>
-
-    <div class="form-row">
-      <label for="message">Message</label>
-      <textarea id="message" name="message" placeholder="Enter Message Here..." required></textarea>
-    </div>
-
-    <div class="form-row form-row-actions">
-      <input type="submit" value="Send Message"/>
-    </div>
-  </form>
-
-  <main id="layout">
-    <!-- CHAT CARD -->
-    <section id="chat-card" class="card">
-      <div class="card-header">
-        <div>
-          <h2>Chat</h2>
-          <p class="card-subtitle">Broadcast, normal &amp; critical messages</p>
+  <div class="top-row">
+    <div class="form-container">
+      <form id="send-form" method="POST" action="/send">
+        <div class="form-row">
+          <label for="target">Target Node</label>
+          <select id="target" name="target"></select>
         </div>
-        <div class="card-controls">
-          <label class="select-label" for="filter-peer">
-            Conversation with
-          </label>
+
+        <div class="form-row">
+          <label for="message">Message</label>
+          <textarea id="message" name="message" placeholder="Enter Message Here..." required></textarea>
+        </div>
+
+        <div class="form-row form-row-actions">
+          <input type="submit" value="Send Message"/>
+        </div>
+      </form>
+    </div>
+
+    <div class="chat-container">
+      <section id="chat-card">
+        <div class="card-header">
+          <div>
+            <h2>Chat</h2>
+            <p class="card-subtitle">Broadcast, normal & critical messages</p>
+          </div>
+
           <div class="select-shell">
+            <label class="select-label" for="filter-peer">Conversation with</label>
             <select id="filter-peer">
-              <option value="all" selected>Any node</option>
+              <option value="all">Any node</option>
             </select>
           </div>
         </div>
+
+        <div id="chat-list"></div>
+        <div id="chat-empty" class="chat-empty">No messages.</div>
+      </section>
+    </div>
+  </div>
+
+  <section id="system-card" class="card" style="max-width:1200px;margin:0 auto 20px;">
+    <div class="card-header">
+      <div>
+        <h2>System Traffic</h2>
+        <p class="card-subtitle">ACK, ping, maintenance & command messages</p>
       </div>
+    </div>
 
-      <div id="chat-list" class="chat-list"></div>
-      <div id="chat-empty" class="empty-state">No chat messages yet.</div>
-    </section>
+    <div class="table-wrapper">
+      <table class="info-table">
+        <thead>
+          <tr>
+            <th>Time</th><th>ID</th><th>Type</th><th>Origin</th><th>Source</th>
+            <th>Destination</th><th>Steps</th><th>Length</th><th>RSSI</th>
+            <th>SNR</th><th>Stage</th><th>Transfer</th><th>Ack Status</th>
+            <th>Ack For</th><th>Content</th>
+          </tr>
+        </thead>
+        <tbody id="system-tbody"></tbody>
+      </table>
+      <div id="system-empty" class="empty-state small">No system messages.</div>
+    </div>
+  </section>
 
-    <!-- SYSTEM TRAFFIC CARD (full width under chat) -->
-    <section id="system-card" class="card">
-      <div class="card-header">
-        <div>
-          <h2>System Traffic</h2>
-          <p class="card-subtitle">ACK, ping, maintenance &amp; command messages</p>
-        </div>
+  <section id="nodes-card" class="card" style="max-width:1200px;margin:0 auto 20px;">
+    <div class="card-header">
+      <div>
+        <h2>Nodes</h2>
+        <p class="card-subtitle">Status, message counts & link quality</p>
       </div>
-
-      <div class="table-wrapper">
-        <table class="info-table wide">
-          <thead>
-            <tr>
-              <th>Time</th>
-              <th>ID</th>
-              <th>Type</th>
-              <th>Origin</th>
-              <th>Source</th>
-              <th>Destination</th>
-              <th>Steps</th>
-              <th>Length</th>
-              <th>RSSI</th>
-              <th>SNR</th>
-              <th>Stage</th>
-              <th>Transfer</th>
-              <th>Ack Status</th>
-              <th>Ack For</th>
-              <th>Content</th>
-            </tr>
-          </thead>
-          <tbody id="system-tbody"></tbody>
-        </table>
-        <div id="system-empty" class="empty-state small">No system messages.</div>
-      </div>
-    </section>
-
-    <!-- NODES CARD -->
-    <section id="nodes-card" class="card">
-      <div class="card-header">
-        <div>
-          <h2>Nodes</h2>
-          <p class="card-subtitle">Status, message counts &amp; link quality</p>
-        </div>
-      </div>
-
-      <div class="table-wrapper">
-        <table class="info-table">
-          <thead>
-            <tr>
-              <th>Addr</th>
-              <th>Name</th>
-              <th># Msgs</th>
-              <th>Avg RSSI</th>
-              <th>Avg SNR</th>
-              <th>Status</th>
-              <th>Last Connection</th>
-            </tr>
-          </thead>
-          <tbody id="node-tbody"></tbody>
-        </table>
-        <div id="node-empty" class="empty-state small">No nodes seen yet.</div>
-      </div>
-    </section>
-  </main>
-
-  <script>
-    // === CONFIG ===
-    const POLL_MS_MESSAGES = 1000;
-    const POLL_MS_NODES    = 5000;
-
-    const CHAT_TYPES   = new Set([1, 2, 4]);       // BROADCAST, NORMAL, CRITICAL
-    const SYSTEM_TYPES = new Set([3, 5, 6, 7]);    // ACK, MAINT, PING, COMMAND
-
-    let newestID = 0;
-    const allMessages = [];
-    const seenMessageIds = new Set();
-    let ackedIds = new Set();
-    let currentNodeAddr = null;
-
-    // Persisted UI selections
-    let selectedPeer   = 'all';
-    let selectedTarget = '';
-
-    const MSG_TYPE_LABEL = {
-      1: "Broadcast",
-      2: "Normal",
-      3: "Ack",
-      4: "Critical",
-      5: "Maintenance",
-      6: "Ping",
-      7: "Command",
-    };
-
-    // ==== Helpers ====
-
-    function esc(s) {
-      let str = String(s ?? "");
-
-      if (str.includes("+") || str.includes("%")) {
-        const prepared = str.replace(/\+/g, "%20");
-        try {
-          str = decodeURIComponent(prepared);
-        } catch {
-          str = prepared.replace(/%([0-9A-Fa-f]{2})/g,
-            (_, hh) => String.fromCharCode(parseInt(hh, 16))
-          );
-        }
-      }
-
-      str = str.replace(/\u2019/g, "'");
-
-      return str
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#39;");
-    }
-
-    function getTimestampSeconds(m) {
-      const ts = m.timestamp;
-      if (typeof ts === 'number' && Number.isFinite(ts)) {
-        return ts;
-      }
-      if (typeof ts === 'string') {
-        const d = Date.parse(ts);
-        if (Number.isFinite(d)) return d / 1000;
-      }
-      return 0;
-    }
-
-    function formatTimeShort(tsSeconds) {
-      if (!Number.isFinite(tsSeconds)) return "";
-      const d = new Date(tsSeconds * 1000);
-      let h = d.getHours();
-      let m = d.getMinutes();
-      let s = d.getSeconds();
-      if (h < 10) h = "0" + h;
-      if (m < 10) m = "0" + m;
-      if (s < 10) s = "0" + s;
-      return `${h}:${m}:${s}`;
-    }
-
-    function formatAgo(seconds) {
-      const s = Math.trunc(seconds);
-      const abs = Math.abs(s);
-
-      const sec = abs % 60;
-      const min = Math.floor(abs / 60) % 60;
-      const hr  = Math.floor(abs / 3600) % 24;
-      const day = Math.floor(abs / 86400);
-
-      const parts = [];
-      if (day) parts.push(`${day} day${day !== 1 ? 's' : ''}`);
-      if (hr && parts.length < 2) parts.push(`${hr} hr${hr !== 1 ? 's' : ''}`);
-      if (min && parts.length < 2) parts.push(`${min} min${min !== 1 ? 's' : ''}`);
-      if (!parts.length || (sec && parts.length < 2)) parts.push(`${sec} sec${sec !== 1 ? 's' : ''}`);
-
-      return s >= 0 ? `${parts.join(' ')} ago` : `in ${parts.join(' ')}`;
-    }
-
-    function isNum(x) { return typeof x === 'number' && Number.isFinite(x); }
-
-    // Conversation filter: when selectedPeer != "all", only show
-    // messages where (src == current && dst == peer) OR (src == peer && dst == current)
-    function applyPeerFilter(list) {
-      if (!list.length || selectedPeer === 'all') return list;
-
-      const peer = String(selectedPeer);
-
-      if (!currentNodeAddr) {
-        // fallback: anything involving that peer
-        return list.filter(m =>
-          String(m.origin)      === peer ||
-          String(m.source)      === peer ||
-          String(m.destination) === peer
-        );
-      }
-
-      const me = String(currentNodeAddr);
-
-      return list.filter(m => {
-        const s = String(m.source);
-        const d = String(m.destination);
-        return (
-          (s === me && d === peer) ||
-          (s === peer && d === me)
-        );
-      });
-    }
-
-    function recomputeAcked() {
-      const set = new Set();
-      for (const m of allMessages) {
-        const t = Number(m.message_type);
-        if (t === 3 && m.ack_for != null && m.ack_for !== 0) {
-          set.add(String(m.ack_for));
-        }
-      }
-      ackedIds = set;
-    }
-
-    // ===== CHAT RENDERING =====
-
-    function renderChat() {
-      const listEl  = document.getElementById('chat-list');
-      const emptyEl = document.getElementById('chat-empty');
-      if (!listEl) return;
-
-      listEl.innerHTML = '';
-
-      let chats = allMessages.filter(m => CHAT_TYPES.has(Number(m.message_type)));
-      chats = applyPeerFilter(chats);
-
-      if (!chats.length) {
-        emptyEl.style.display = '';
-        return;
-      }
-      emptyEl.style.display = 'none';
-
-      // Newest at TOP by timestamp
-      chats.sort((a, b) => {
-        const ta = getTimestampSeconds(a);
-        const tb = getTimestampSeconds(b);
-        if (tb !== ta) return tb - ta;
-        return (b.id || 0) - (a.id || 0);
-      });
-
-      const frag = document.createDocumentFragment();
-      const me = currentNodeAddr != null ? String(currentNodeAddr) : null;
-
-      for (const m of chats) {
-        const t       = Number(m.message_type);
-        const tLabel  = MSG_TYPE_LABEL[t] || "Unknown";
-        const tsSec   = getTimestampSeconds(m);
-        const timeStr = formatTimeShort(tsSec);
-
-        const origin = String(m.origin);
-        const dest   = String(m.destination);
-
-        const fromMe = me && origin === me;
-        const toMe   = me && dest   === me;
-
-        const isAcked = ackedIds.has(String(m.id));
-
-        const msgDiv = document.createElement('div');
-        msgDiv.className = 'chat-msg';
-
-        if (fromMe) {
-          msgDiv.classList.add('from-me');
-        } else if (toMe) {
-          msgDiv.classList.add('to-me');
-        } else {
-          msgDiv.classList.add('third-party');
-        }
-
-        const meta = document.createElement('div');
-        meta.className = 'chat-meta';
-        meta.innerHTML =
-          `<span class="pill pill-type-${t}">${esc(tLabel)}</span>` +
-          `<span class="chat-route">${esc(m.source)} → ${esc(m.destination)}</span>`;
-        msgDiv.appendChild(meta);
-
-        const content = document.createElement('div');
-        content.className = 'chat-content';
-        content.innerHTML = esc(m.content ?? '');
-        msgDiv.appendChild(content);
-
-        const footer = document.createElement('div');
-        footer.className = 'chat-footer';
-
-        const timeSpan = document.createElement('span');
-        timeSpan.className = 'chat-timestamp';
-        timeSpan.textContent = timeStr;
-        footer.appendChild(timeSpan);
-
-        // Small ACK marker only for messages originating from this node
-        if (fromMe) {
-          const ackSpan = document.createElement('span');
-          ackSpan.className = 'chat-ack ' + (isAcked ? 'chat-ack-ok' : 'chat-ack-pending');
-          ackSpan.textContent = isAcked ? '✓' : '×';
-          footer.appendChild(ackSpan);
-        }
-
-        msgDiv.appendChild(footer);
-        frag.appendChild(msgDiv);
-      }
-
-      listEl.appendChild(frag);
-    }
-
-    // ===== SYSTEM TABLE RENDERING =====
-
-    function renderSystem() {
-      const tbody  = document.getElementById('system-tbody');
-      const empty  = document.getElementById('system-empty');
-      if (!tbody) return;
-
-      tbody.innerHTML = '';
-
-      let sys = allMessages.filter(m => SYSTEM_TYPES.has(Number(m.message_type)));
-      sys = applyPeerFilter(sys);
-
-      if (!sys.length) {
-        empty.style.display = '';
-        return;
-      }
-      empty.style.display = 'none';
-
-      sys.sort((a, b) => {
-        const ta = getTimestampSeconds(a);
-        const tb = getTimestampSeconds(b);
-        if (tb !== ta) return tb - ta;
-        return (b.id || 0) - (a.id || 0);
-      });
-
-      const frag = document.createDocumentFragment();
-      const me = currentNodeAddr != null ? String(currentNodeAddr) : null;
-
-      for (const m of sys) {
-        const t       = Number(m.message_type);
-        const tLabel  = MSG_TYPE_LABEL[t] || "Unknown";
-        const tsSec   = getTimestampSeconds(m);
-        const timeStr = formatTimeShort(tsSec);
-
-        const origin = String(m.origin);
-        const dest   = String(m.destination);
-
-        const fromMe = me && origin === me;
-        const toMe   = me && dest   === me;
-
-        const tr = document.createElement('tr');
-        if (fromMe) {
-          tr.classList.add('sys-from-me');
-        } else if (toMe) {
-          tr.classList.add('sys-to-me');
-        }
-
-        tr.innerHTML =
-          `<td>${esc(timeStr)}</td>` +
-          `<td>${esc(m.id)}</td>` +
-          `<td>${esc(tLabel)}</td>` +
-          `<td>${esc(m.origin)}</td>` +
-          `<td>${esc(m.source)}</td>` +
-          `<td>${esc(m.destination)}</td>` +
-          `<td>${esc(m.steps)}</td>` +
-          `<td>${esc(m.length)}</td>` +
-          `<td>${esc(m.rssi)}</td>` +
-          `<td>${esc(m.snr)}</td>` +
-          `<td>${esc(m.stage)}</td>` +
-          `<td>${esc(m.transfer_status)}</td>` +
-          `<td>${esc(m.ack_status)}</td>` +
-          `<td>${esc(m.ack_for)}</td>` +
-          `<td class="col-content">${esc(m.content ?? '')}</td>`;
-        frag.appendChild(tr);
-      }
-
-      tbody.appendChild(frag);
-    }
-
-    // ===== NODES RENDERING =====
-
-    function renderNodes(list) {
-      const tbody      = document.getElementById('node-tbody');
-      const empty      = document.getElementById('node-empty');
-      const targetSel  = document.getElementById('target');
-      const peerSelect = document.getElementById('filter-peer');
-
-      if (!tbody || !targetSel || !peerSelect) return;
-
-      tbody.innerHTML = '';
-      targetSel.innerHTML = '';
-      peerSelect.innerHTML = '';
-
-      if (!Array.isArray(list) || !list.length) {
-        empty.style.display = '';
-      } else {
-        empty.style.display = 'none';
-      }
-
-      // Determine current node
-      const current = list.find(n => n.current_node === 1);
-      if (current) {
-        currentNodeAddr = String(current.address);
-      }
-
-      // Node table
-      const nodeFrag = document.createDocumentFragment();
-      list.sort((a, b) => a.last_connection - b.last_connection);
-
-      for (const n of list) {
-        const tr = document.createElement('tr');
-        const isCurrent = n.current_node === 1;
-        if (isCurrent) tr.classList.add('this-node');
-
-        const avgRssi = isNum(n.avg_rssi) ? n.avg_rssi.toFixed(1) : esc(n.avg_rssi);
-        const avgSnr  = isNum(n.avg_snr)  ? n.avg_snr.toFixed(1)  : esc(n.avg_snr);
-
-        let status = "ERR";
-        if (n.status === 0) {
-          status = "Alive";
-        } else if (n.status === 1) {
-          status = "Dead";
-        } else {
-          status = "Unknown";
-        }
-
-        tr.innerHTML =
-          `<td>${esc(n.address)}</td>` +
-          `<td>${esc(n.name)}</td>` +
-          `<td>${esc(n.messages ?? 0)}</td>` +
-          `<td>${avgRssi}</td>` +
-          `<td>${avgSnr}</td>` +
-          `<td>${status}</td>` +
-          `<td>${formatAgo(n.last_connection)}</td>`;
-
-        nodeFrag.appendChild(tr);
-      }
-
-      tbody.appendChild(nodeFrag);
-
-      // Target node dropdown - no current node
-      const currentTargetValue = selectedTarget || '';
-
-      const targetFrag = document.createDocumentFragment();
-      let hasPrevTarget = false;
-
-      for (const n of list) {
-        // if (n.current_node === 1) continue; // skip current
-
-        const opt = document.createElement('option');
-        opt.value = String(n.address);
-        opt.textContent = `${n.name ? n.name : 'Node'} — ${n.address}`;
-        if (currentTargetValue && String(n.address) === String(currentTargetValue)) {
-          opt.selected = true;
-          hasPrevTarget = true;
-        }
-        targetFrag.appendChild(opt);
-      }
-
-      targetSel.appendChild(targetFrag);
-
-      if (currentTargetValue === '0') {
-        optBroadcast.selected = true;
-      } else if (!hasPrevTarget) {
-        ph.selected = true;
-      }
-
-      selectedTarget = targetSel.value;
-
-      // Conversation filter dropdown
-      const anyOpt = document.createElement('option');
-      anyOpt.value = 'all';
-      anyOpt.textContent = 'Any node';
-      peerSelect.appendChild(anyOpt);
-
-      const peerFrag = document.createDocumentFragment();
-      let hasPrevPeer = false;
-
-      for (const n of list) {
-        const opt = document.createElement('option');
-        opt.value = String(n.address);
-        opt.textContent = `${n.name ? n.name : 'Node'} — ${n.address}`;
-        if (selectedPeer && String(n.address) === String(selectedPeer)) {
-          opt.selected = true;
-          hasPrevPeer = true;
-        }
-        peerFrag.appendChild(opt);
-      }
-
-      peerSelect.appendChild(peerFrag);
-
-      if (!hasPrevPeer) {
-        anyOpt.selected = true;
-        selectedPeer = 'all';
-      }
-
-      // Re-render now that currentNodeAddr might have changed
-      renderChat();
-      renderSystem();
-    }
-
-    // ===== POLLERS =====
-
-    async function pollMessages() {
-      const url = newestID
-        ? `/api/messages?since_id=${encodeURIComponent(newestID)}`
-        : `/api/messages`;
-      const r = await fetch(url, { cache: 'no-store' });
-      if (!r.ok) return;
-      const rows = await r.json();
-      if (!Array.isArray(rows) || !rows.length) return;
-
-      newestID = rows[0].id || newestID;
-
-      for (const m of rows) {
-        if (seenMessageIds.has(m.id)) continue;
-        seenMessageIds.add(m.id);
-        allMessages.push(m);
-      }
-
-      recomputeAcked();
-      renderChat();
-      renderSystem();
-    }
-
-    let nodesInFlight = false;
-    let nodesRefreshQueued = false;
-
-    async function pollNodesOnce(force = false) {
-      if (nodesInFlight) {
-        if (force) nodesRefreshQueued = true;
-        return;
-      }
-      nodesInFlight = true;
-      try {
-        const r = await fetch('/api/nodes', { cache: 'no-store' });
-        if (!r.ok) return;
-        const data = await r.json();
-        if (Array.isArray(data)) renderNodes(data);
-      } finally {
-        nodesInFlight = false;
-        if (nodesRefreshQueued) {
-          nodesRefreshQueued = false;
-          pollNodesOnce(false);
-        }
-      }
-    }
-
-    let tMsg = null, tNode = null;
-    function startPolling() {
-      stopPolling();
-      pollMessages();
-      pollNodesOnce(false);
-      tMsg  = setInterval(pollMessages, POLL_MS_MESSAGES);
-      tNode = setInterval(() => pollNodesOnce(false), POLL_MS_NODES);
-    }
-
-    function stopPolling() {
-      if (tMsg)  { clearInterval(tMsg);  tMsg  = null; }
-      if (tNode) { clearInterval(tNode); tNode = null; }
-    }
-
-    document.addEventListener('visibilitychange', () => {
-      if (document.hidden) stopPolling(); else startPolling();
-    });
-
-    window.addEventListener('DOMContentLoaded', () => {
-      const peerSelect = document.getElementById('filter-peer');
-      if (peerSelect) {
-        peerSelect.addEventListener('change', (e) => {
-          selectedPeer = e.target.value || 'all';
-          renderChat();
-          renderSystem();
-        });
-      }
-
-      const targetSel = document.getElementById('target');
-      if (targetSel) {
-        targetSel.addEventListener('change', (e) => {
-          selectedTarget = e.target.value;
-        });
-      }
-
-      startPolling();
-    });
-  </script>
+    </div>
+
+    <div class="table-wrapper">
+      <table class="info-table">
+        <thead>
+          <tr>
+            <th>Addr</th><th>Name</th><th># Msgs</th><th>Avg RSSI</th>
+            <th>Avg SNR</th><th>Status</th><th>Last Connection</th>
+          </tr>
+        </thead>
+        <tbody id="node-tbody"></tbody>
+      </table>
+      <div id="node-empty" class="empty-state small">No nodes seen yet.</div>
+    </div>
+  </section>
+
+  <script src="script.js"></script>
 </body>
 </html>
