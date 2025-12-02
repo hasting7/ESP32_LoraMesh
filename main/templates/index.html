@@ -197,10 +197,21 @@
       return `${h}:${m}`;
     }
 
+    function normalizeEpochSeconds(raw) {
+      const num = Number(raw);
+      if (!Number.isFinite(num)) return null;
+
+      // Some firmware reports minutes-since-epoch; convert those to seconds.
+      if (num > 0 && num < 1_000_000_000) {
+        return num * 60;
+      }
+
+      return num;
+    }
+
     function formatAgoFromEpoch(epochSeconds) {
-      const nowSec = Date.now() / 1000;
-      const delta = nowSec - epochSeconds;
-      return formatAgo(delta);
+      const secondsSinceEpoch = normalizeEpochSeconds(epochSeconds);
+      return secondsSinceEpoch === null ? "" : formatAgo(secondsSinceEpoch);
     }
 
     function formatAgo(seconds) {
@@ -443,13 +454,16 @@
       }
 
       const nodeFrag = document.createDocumentFragment();
-      const nowSec = Date.now() / 1000;
       list.sort((a, b) => {
-        const aConn = Number(a.last_connection);
-        const bConn = Number(b.last_connection);
-        const aAge = Number.isFinite(aConn) ? nowSec - aConn : Infinity;
-        const bAge = Number.isFinite(bConn) ? nowSec - bConn : Infinity;
-        return aAge - bAge;
+        const aConn = normalizeEpochSeconds(a.last_connection);
+        const bConn = normalizeEpochSeconds(b.last_connection);
+
+        if (aConn === null && bConn === null) return 0;
+        if (aConn === null) return 1;
+        if (bConn === null) return -1;
+
+        // Larger epoch values are more recent when interpreted against the epoch.
+        return bConn - aConn;
       });
 
       for (const n of list) {
@@ -459,9 +473,9 @@
 
         const avgRssi = isNum(n.avg_rssi) ? n.avg_rssi.toFixed(1) : esc(n.avg_rssi);
         const avgSnr  = isNum(n.avg_snr)  ? n.avg_snr.toFixed(1)  : esc(n.avg_snr);
-        const lastConn = Number(n.last_connection);
-        const lastStr = Number.isFinite(lastConn)
-          ? formatAgoFromEpoch(lastConn)
+        const lastConn = normalizeEpochSeconds(n.last_connection);
+        const lastStr = lastConn !== null
+          ? formatAgo(lastConn)
           : esc(n.last_connection);
 
         let status = "ERR";
