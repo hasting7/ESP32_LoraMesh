@@ -153,7 +153,7 @@ void resolve_system_command(char *cmd_buffer) {
     printf("System command: %s\n",cmd_buffer);
 
     char name[32];
-    if (sscanf(cmd_buffer, "SYS+NAME=%31s",name)) {
+    if (sscanf(cmd_buffer, "SYS+NAME=%31[^\r\n]",name)) {
         name[31] = '\0';
         int len = strlen(name);
         printf("New name is %s\n",name);
