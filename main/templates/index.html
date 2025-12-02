@@ -45,15 +45,15 @@
           <p class="card-subtitle">Broadcast, normal &amp; critical messages</p>
         </div>
         <div class="card-controls">
-          <div class="control-row">
-            <label class="select-label" for="filter-peer">Conversation with</label>
+          <label class="select-label" for="filter-peer">Conversation with</label>
+          <div class="control-row inline-controls">
             <div class="select-shell">
               <select id="filter-peer">
                 <option value="all" selected>Any node</option>
               </select>
             </div>
+            <button id="toggle-order" type="button" class="ghost-button">Newest at bottom</button>
           </div>
-          <button id="toggle-order" type="button" class="ghost-button">Newest at bottom</button>
         </div>
       </div>
 
@@ -362,7 +362,6 @@
       tbody.innerHTML = '';
 
       let sys = allMessages.filter(m => SYSTEM_TYPES.has(Number(m.message_type)));
-      sys = applyPeerFilter(sys);
 
       if (!sys.length) {
         empty.style.display = '';
@@ -486,7 +485,17 @@
       const targetFrag = document.createDocumentFragment();
       let hasPrevTarget = false;
 
+      const broadcastOpt = document.createElement('option');
+      broadcastOpt.value = '0';
+      broadcastOpt.textContent = 'Broadcast — 0';
+      if (currentTargetValue && currentTargetValue === '0') {
+        broadcastOpt.selected = true;
+        hasPrevTarget = true;
+      }
+      targetFrag.appendChild(broadcastOpt);
+
       for (const n of list) {
+        if (n.current_node === 1) continue;
         const opt = document.createElement('option');
         opt.value = String(n.address);
         opt.textContent = `${n.name ? n.name : 'Node'} — ${n.address}`;
@@ -514,6 +523,7 @@
       let hasPrevPeer = false;
 
       for (const n of list) {
+        if (n.current_node === 1) continue;
         const opt = document.createElement('option');
         opt.value = String(n.address);
         opt.textContent = `${n.name ? n.name : 'Node'} — ${n.address}`;
@@ -604,7 +614,6 @@
         peerSelect.addEventListener('change', (e) => {
           selectedPeer = e.target.value || 'all';
           renderChat();
-          renderSystem();
         });
       }
 
