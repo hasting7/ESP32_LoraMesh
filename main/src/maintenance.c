@@ -159,6 +159,6 @@ void resolve_system_command(char *cmd_buffer) {
         printf("New name is %s\n",name);
         NodeEntry *node = get_node_ptr(g_address.i_addr);
         strlcpy(node->name, name, 32);
-        node->name[len - 1] = '\0';
+        node->name[len] = '\0';
     }
 }
