@@ -197,21 +197,10 @@
       return `${h}:${m}`;
     }
 
-    function normalizeEpochSeconds(raw) {
+    function normalizeSecondsSince(raw) {
       const num = Number(raw);
       if (!Number.isFinite(num)) return null;
-
-      // Some firmware reports minutes-since-epoch; convert those to seconds.
-      if (num > 0 && num < 1_000_000_000) {
-        return num * 60;
-      }
-
-      return num;
-    }
-
-    function formatAgoFromEpoch(epochSeconds) {
-      const secondsSinceEpoch = normalizeEpochSeconds(epochSeconds);
-      return secondsSinceEpoch === null ? "" : formatAgo(secondsSinceEpoch);
+      return num < 0 ? 0 : num;
     }
 
     function formatAgo(seconds) {
@@ -455,15 +444,15 @@
 
       const nodeFrag = document.createDocumentFragment();
       list.sort((a, b) => {
-        const aConn = normalizeEpochSeconds(a.last_connection);
-        const bConn = normalizeEpochSeconds(b.last_connection);
+        const aConn = normalizeSecondsSince(a.last_connection);
+        const bConn = normalizeSecondsSince(b.last_connection);
 
         if (aConn === null && bConn === null) return 0;
         if (aConn === null) return 1;
         if (bConn === null) return -1;
 
-        // Larger epoch values are more recent when interpreted against the epoch.
-        return bConn - aConn;
+        // Smaller elapsed values are more recent.
+        return aConn - bConn;
       });
 
       for (const n of list) {
@@ -473,7 +462,7 @@
 
         const avgRssi = isNum(n.avg_rssi) ? n.avg_rssi.toFixed(1) : esc(n.avg_rssi);
         const avgSnr  = isNum(n.avg_snr)  ? n.avg_snr.toFixed(1)  : esc(n.avg_snr);
-        const lastConn = normalizeEpochSeconds(n.last_connection);
+        const lastConn = normalizeSecondsSince(n.last_connection);
         const lastStr = lastConn !== null
           ? formatAgo(lastConn)
           : esc(n.last_connection);
