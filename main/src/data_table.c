@@ -25,6 +25,15 @@ void msg_table_init(void) {
     g_msg_table = create_hashtable(TABLE_SIZE);
 }
 
+
+DataEntry *msg_find(int key) {
+    xSemaphoreTake(g_dtb_mutex, portMAX_DELAY);
+
+    hash_find(g_msg_table, key);
+
+    xSemaphoreGive(g_dtb_mutex);
+}
+
 ID create_command(char *content) {
     return create_data_object(NO_ID, COMMAND, content, g_address.i_addr, g_address.i_addr, g_address.i_addr, 0, 0, 0, NO_ID);
 }
@@ -62,7 +71,7 @@ ID create_data_object(int id, MessageType type, char *content, int src, int dst,
     if (id == NO_ID) {
         do {
             new_entry->id = rand_msg_id();
-        } while (hash_find(g_msg_table, new_entry->id));
+        } while (msg_find(new_entry->id));
     } else {
         new_entry->id = id;
     }

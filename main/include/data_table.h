@@ -59,5 +59,5 @@ ID create_data_object(int id, MessageType type, char *content, int src, int dst,
 void free_data_object(DataEntry **ptr);
 void msg_table_init(void);
 int format_data_as_json(DataEntry *, char *, int);
-
+DataEntry *msg_find(int key);
 #endif // DATA_TABLE_H

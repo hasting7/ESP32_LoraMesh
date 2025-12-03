@@ -52,7 +52,7 @@ static bool parse_rcv_line(const char *line,
 
 
 int format_message_command(ID msg_id, char *command_buffer, size_t length) {
-    DataEntry *data = hash_find(g_msg_table, msg_id);
+    DataEntry *data = msg_find(msg_id);
     // ID to_address = data->target_node;
     if (!data) {
         ESP_LOGE(TAG, "Formatting message id=%d does not exist",msg_id);
@@ -80,7 +80,7 @@ int format_message_command(ID msg_id, char *command_buffer, size_t length) {
 
 
 int send_message_blocking(ID msg_id) {
-    DataEntry *data = hash_find(g_msg_table, msg_id);
+    DataEntry *data = msg_find(msg_id);
 
     char command_buffer[256];
     size_t length;
@@ -230,7 +230,7 @@ MessageSendingStatus uart_send_and_block(char *cmd, size_t length, char *resp_bu
 
 
 void queue_send(ID msg_id, int target) {
-    DataEntry *data = hash_find(g_msg_table, msg_id);
+    DataEntry *data = msg_find(msg_id);
     data->target_node = target;
     data->transfer_status = QUEUED;
     xQueueSend(MessageQueue, &msg_id, pdMS_TO_TICKS(50));
@@ -273,7 +273,7 @@ static void rcv_handler_task(void *arg) {
                 // check to see if id already exists.
                 // only create if NEW
                 // handle this diffrently lowkey, if you re-receive a message do somthing else
-                DataEntry *existing = hash_find(g_msg_table, id);
+                DataEntry *existing = msg_find(id);
                 ID rcv_msg_id;
                 if (existing) {
                     printf("msg with id=%d already exists.\n\tExisting content = \"%s\"\n\tNew content = \"%s\"\n",id, existing->content, data);
@@ -292,7 +292,7 @@ static void rcv_handler_task(void *arg) {
 
                 // im switching from msg_type == ACK to check to see if msg has ack_for
                 if (ack_for != NO_ID) {
-                    DataEntry *acked_msg = hash_find(g_msg_table, ack_for);
+                    DataEntry *acked_msg = msg_find(ack_for);
                     // mark it as acked because it is
                     acked_msg->ack_status = 1;
 
@@ -305,9 +305,8 @@ static void rcv_handler_task(void *arg) {
                 }  
 
                 // create ack if msg of type and at destination
-                if ((msg_type == CRITICAL) && (dest == g_address.i_addr)) {
+                if (dest == g_address.i_addr) {
                     char msg_id_buff[32];
-                    // fix and make msg send id with it and return id
                     snprintf(msg_id_buff, 32, "ack msg for %d", id);
                     ID ack_id = create_data_object(NO_ID, ACK, msg_id_buff , g_address.i_addr, origin, g_address.i_addr, 0, 0, 0, id);
                     queue_send(ack_id, from);

@@ -69,7 +69,7 @@ NodeEntry *get_node_ptr(int address) {
 }
 
 int nodes_update(ID msg_id) {
-    DataEntry *data = hash_find(g_msg_table, msg_id);
+    DataEntry *data = msg_find(msg_id);
     if (!data) return 0;
 
     // origin should never be broadcast
@@ -132,7 +132,7 @@ void ping_suspect_node(void *args) {
     NodeEntry *node = (NodeEntry *)args;
     if (!node) { vTaskDelete(NULL); return; }
 
-    DataEntry *ping_msg = hash_find(g_msg_table, node->ping_id);
+    DataEntry *ping_msg = msg_find(node->ping_id);
     if (!ping_msg) { 
         ESP_LOGW(TAG, "no ping msg for node %d",node->address.i_addr);
         vTaskDelete(NULL); return; 

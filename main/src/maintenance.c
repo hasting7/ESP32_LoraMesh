@@ -18,7 +18,7 @@ DISCOVERY RESPONSE
 */
 
 void handle_maintenance_msg(ID msg_id) {
-    DataEntry *respond_to_msg = hash_find(g_msg_table, msg_id);
+    DataEntry *respond_to_msg = msg_find(msg_id);
     printf("MAINTENANCE msg handling for ID=%d : \"%s\"\n", respond_to_msg->id, respond_to_msg->content);
     // make sure msg is either broadcasted, or meant for this node
     // also check to make sure message has not already been received ******* DO THIS LATER
@@ -44,7 +44,7 @@ void handle_maintenance_msg(ID msg_id) {
         // send ping msg back to the ORIGIN node, going to  the SRC node, as an ack for that msg
  
     } else if (respond_to_msg->ack_for) {
-        DataEntry *acked_msg = hash_find(g_msg_table, respond_to_msg->ack_for);
+        DataEntry *acked_msg = msg_find(respond_to_msg->ack_for);
         if (strncmp(acked_msg->content, "ping", 4) == 0) {
             NodeEntry *heard_node = get_node_ptr(respond_to_msg->origin_node);
             int c = 0;
@@ -66,7 +66,7 @@ void handle_maintenance_msg(ID msg_id) {
 
     } else if (respond_to_msg->ack_for) {
         // if msg is resposne to a discovery node
-        DataEntry *acked_msg = hash_find(g_msg_table, respond_to_msg->ack_for);
+        DataEntry *acked_msg = msg_find(respond_to_msg->ack_for);
         // if it is the discovery message then deal with it
         if (strncmp(acked_msg->content, "discovery", 9) == 0) {
             parse_new_nodes(respond_to_msg->content);
