@@ -13,7 +13,7 @@ typedef enum {
     MSG_AT_DESTINATION  // this node is the destination
 } MessageRouteStage;
 
-typedef enum { // 15 max
+typedef enum {
     BROADCAST = 1,
     NORMAL,
     ACK,
