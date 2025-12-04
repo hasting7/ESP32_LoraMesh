@@ -305,12 +305,12 @@ static void rcv_handler_task(void *arg) {
                 }  
 
                 // create ack if msg of type and at destination
-                if (dest == g_address.i_addr) {
-                    char msg_id_buff[32];
-                    snprintf(msg_id_buff, 32, "ack msg for %d", id);
-                    ID ack_id = create_data_object(NO_ID, ACK, msg_id_buff , g_address.i_addr, origin, g_address.i_addr, 0, 0, 0, id);
-                    queue_send(ack_id, from);
-                }
+                // if (dest == g_address.i_addr) {
+                //     char msg_id_buff[32];
+                //     snprintf(msg_id_buff, 32, "ack msg for %d", id);
+                //     ID ack_id = create_data_object(NO_ID, ACK, msg_id_buff , g_address.i_addr, origin, g_address.i_addr, 0, 0, 0, id);
+                //     queue_send(ack_id, from);
+                // }
             } else {
                 printf("UART PARSE FAIL: '%s'\n", line);
             }
