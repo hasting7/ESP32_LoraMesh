@@ -8,8 +8,9 @@
 
 #include "data_table.h"
 #include "esp_log.h"
+#include "node_globals.h"
 
-#define BROADCAST_ID (0)
+
 NodeEntry *g_node_table = NULL;
 static SemaphoreHandle_t g_ntb_mutex;
 static const char *TAG = "NODE TABLE";

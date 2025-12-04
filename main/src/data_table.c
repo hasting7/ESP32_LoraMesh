@@ -29,9 +29,10 @@ void msg_table_init(void) {
 DataEntry *msg_find(int key) {
     xSemaphoreTake(g_dtb_mutex, portMAX_DELAY);
 
-    hash_find(g_msg_table, key);
+    DataEntry *entry = hash_find(g_msg_table, key);
 
     xSemaphoreGive(g_dtb_mutex);
+    return entry;
 }
 
 ID create_command(char *content) {

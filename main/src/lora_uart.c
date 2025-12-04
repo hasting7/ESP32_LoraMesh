@@ -19,6 +19,7 @@
 #include "node_table.h"
 #include "maintenance.h"
 
+
 static const char *TAG = "UART";
 
 static QueueHandle_t MessageQueue;
@@ -267,7 +268,8 @@ static void rcv_handler_task(void *arg) {
             ID from, origin, dest, id, ack_for;
             char data[256];
             if (parse_rcv_line(line, &from, &len, data, sizeof(data), &origin, &dest, &step, &msg_type, &id, &ack_for, &rssi, &snr)) {
-
+                // from the last node to receiving at this node is a step
+                step +=1;
 
 
                 // check to see if id already exists.
@@ -275,42 +277,54 @@ static void rcv_handler_task(void *arg) {
                 // handle this diffrently lowkey, if you re-receive a message do somthing else
                 DataEntry *existing = msg_find(id);
                 ID rcv_msg_id;
+
+                bool should_handle = true;
                 if (existing) {
+                    // if its a gbcast we want to eliminate dups
+                    if ((existing->message_type == MAINTENANCE) && (strncmp("gbcast",existing->content,7) == 0)) {
+                        // this gbcast msg has already been heard
+                        printf("GBcast already received here");
+                        should_handle = false;
+                    }
                     printf("msg with id=%d already exists.\n\tExisting content = \"%s\"\n\tNew content = \"%s\"\n",id, existing->content, data);
                     rcv_msg_id = existing->id;
                 } else {
-                    rcv_msg_id = create_data_object(id, msg_type, data, from, dest, origin, step + 1, rssi, snr, ack_for);
+                    rcv_msg_id = create_data_object(id, msg_type, data, from, dest, origin, step, rssi, snr, ack_for);
                 }
 
                 // update node given newest message
                 nodes_update(rcv_msg_id);
 
-                if (msg_type == MAINTENANCE) {
-                    handle_maintenance_msg(rcv_msg_id);
+                // if a duplicate is not forbiden
+                if (should_handle) {
 
-                }
+                    if (msg_type == MAINTENANCE) {
+                        handle_maintenance_msg(rcv_msg_id);
 
-                // im switching from msg_type == ACK to check to see if msg has ack_for
-                if (ack_for != NO_ID) {
-                    DataEntry *acked_msg = msg_find(ack_for);
-                    // mark it as acked because it is
-                    acked_msg->ack_status = 1;
-
-                    if (dest != g_address.i_addr) {
-                        // msg went from src -> dst. but now we wanna send to src
-                        queue_send(id, acked_msg->src_node);
                     }
-                    // if msg is an ACK
-                    // the goal is to send it along the path it came
-                }  
 
-                // create ack if msg of type and at destination
-                // if (dest == g_address.i_addr) {
-                //     char msg_id_buff[32];
-                //     snprintf(msg_id_buff, 32, "ack msg for %d", id);
-                //     ID ack_id = create_data_object(NO_ID, ACK, msg_id_buff , g_address.i_addr, origin, g_address.i_addr, 0, 0, 0, id);
-                //     queue_send(ack_id, from);
-                // }
+                    // im switching from msg_type == ACK to check to see if msg has ack_for
+                    if (ack_for != NO_ID) {
+                        DataEntry *acked_msg = msg_find(ack_for);
+                        // mark it as acked because it is
+                        acked_msg->ack_status = 1;
+
+                        if (dest != g_address.i_addr) {
+                            // msg went from src -> dst. but now we wanna send to src
+                            queue_send(id, acked_msg->src_node);
+                        }
+                        // if msg is an ACK
+                        // the goal is to send it along the path it came
+                    }  
+
+                    // create ack if msg of type and at destination
+                    // if (dest == g_address.i_addr) {
+                    //     char msg_id_buff[32];
+                    //     snprintf(msg_id_buff, 32, "ack msg for %d", id);
+                    //     ID ack_id = create_data_object(NO_ID, ACK, msg_id_buff , g_address.i_addr, origin, g_address.i_addr, 0, 0, 0, id);
+                    //     queue_send(ack_id, from);
+                    // }
+                }
             } else {
                 printf("UART PARSE FAIL: '%s'\n", line);
             }

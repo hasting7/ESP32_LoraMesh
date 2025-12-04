@@ -3,6 +3,8 @@
 #include <stdint.h>
 #include "hash_table.h"
 
+#define BROADCAST_ID (0)
+
 typedef uint16_t ID;
 
 typedef struct {

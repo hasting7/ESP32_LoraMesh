@@ -5,7 +5,6 @@
 
 #include "esp_random.h"
 
-
 Address g_address = {0};
 HashTable *g_msg_table = NULL;
 
