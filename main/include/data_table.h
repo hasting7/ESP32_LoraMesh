@@ -1,10 +1,8 @@
 #ifndef DATA_TABLE_H
 #define DATA_TABLE_H
 
-#include <stdint.h>
 #include <time.h>
 
-#include "hash_table.h"
 #include "node_globals.h"
 
 typedef enum {
@@ -60,4 +58,5 @@ void free_data_object(DataEntry **ptr);
 void msg_table_init(void);
 int format_data_as_json(DataEntry *, char *, int);
 DataEntry *msg_find(int key);
+
 #endif // DATA_TABLE_H

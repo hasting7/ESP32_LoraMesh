@@ -1,7 +1,11 @@
 #include "maintenance.h"
 
-#include "node_table.h"
 #include "routing.h"
+#include "data_table.h"
+#include "node_table.h"
+#include "lora_uart.h"
+
+#include <string.h>
 #include <time.h>
 
 #define RQUERY_INTERVAL_MS (120000)

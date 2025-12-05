@@ -19,7 +19,6 @@
 #include "maintenance.h"
 #include "data_table.h"
 #include "lora_uart.h"
-#include "mesh_config.h"
 #include "node_table.h"
 
 int cmp_dataentry_timestamp_asc(const void *a, const void *b) {
@@ -305,7 +304,7 @@ static httpd_handle_t start_http_server(void)
     return server;
 }
 
-void wifi_start_softap(Address *address) {
+int wifi_start_softap() {
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
@@ -375,5 +374,5 @@ void wifi_start_softap(Address *address) {
 
     start_http_server();
 
-    address->i_addr = (ID) suffix;
+    return suffix;
 }

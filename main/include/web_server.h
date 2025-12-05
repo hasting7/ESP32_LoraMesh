@@ -1,8 +1,6 @@
 #ifndef WEB_SERVER_H
 #define WEB_SERVER_H
 
-#include "node_globals.h"
-
-void wifi_start_softap(Address *);
+int wifi_start_softap();
 
 #endif // WEB_SERVER_H

@@ -5,8 +5,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stddef.h>
 
-#include "driver/gpio.h"
 #include "driver/uart.h"
 #include "esp_random.h"
 #include "freertos/FreeRTOS.h"
@@ -14,22 +14,39 @@
 #include "freertos/task.h"
 #include "esp_log.h"
 
-#include "mesh_config.h"
 #include "node_globals.h"
 #include "node_table.h"
 #include "maintenance.h"
 #include "routing.h"
+#include "data_table.h"
 
+
+typedef enum {
+    SEND,
+    ADDRESS,
+    RESET,
+    PARAMETER,
+    NETWORKID,
+    BAND,
+    FACTORY,
+    CRFOP
+} Command;
+
+static MessageSendingStatus uart_send_and_block(char *, size_t, char *, size_t);
+static int send_message_blocking(ID msg_id);
+
+static void uart_reader_task(void *arg);
+static void rcv_handler_task(void *arg);
 
 static const char *TAG = "UART";
+// static const int MAX_PAYLOAD = 240;
 
 static QueueHandle_t MessageQueue;
 
 QueueHandle_t q_resp;
 QueueHandle_t q_rcv;
 
-static void uart_reader_task(void *arg);
-static void rcv_handler_task(void *arg);
+
 
 static bool parse_rcv_line(const char *line,
                            ID *from, int *len, char *data, size_t data_cap,
@@ -79,7 +96,7 @@ int format_message_command(ID msg_id, char *command_buffer, size_t length) {
 }
 
 
-int send_message_blocking(ID msg_id) {
+static int send_message_blocking(ID msg_id) {
     DataEntry *data = msg_find(msg_id);
 
     char command_buffer[256];
@@ -125,7 +142,7 @@ int send_message_blocking(ID msg_id) {
 }
 
 
-MessageSendingStatus uart_send_and_block(char *cmd, size_t length, char *resp_buffer, size_t max_resp_length) {
+static MessageSendingStatus uart_send_and_block(char *cmd, size_t length, char *resp_buffer, size_t max_resp_length) {
     if (length == 0) {
         length = strlen(cmd);
     }

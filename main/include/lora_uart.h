@@ -1,29 +1,25 @@
 #ifndef LORA_UART_H
 #define LORA_UART_H
 
-#include <stddef.h>
+#include "node_globals.h"
 
-#include "data_table.h"
+// Wi-Fi SoftAP configuration
+#define AP_SSID     "LoRa MeshNet"
+#define AP_PASS     ""   // >= 8 chars for WPA2; empty for open
+#define AP_CHANNEL  6
+#define AP_MAX_CONN 4
 
-typedef enum {
-        SEND,
-        ADDRESS,
-        RESET,
-        PARAMETER,
-        NETWORKID,
-	BAND,
-	FACTORY,
-	CRFOP
-} Command;
+// LoRa UART configuration
+#define TX_PIN  (17)
+#define RX_PIN  (16)
+#define RST_PIN (23)
 
-
-#define MAX_PAYLOAD (240)
-#define REQUEST_STATUS_TIME (120)
+#define UART_READ_BUFF  (2048)
+#define UART_WRITE_BUFF (0)
+#define UART_PORT       (UART_NUM_2)
+#define BAUD            (9600) //115200
 
 void uart_init(void);
-// LoraInstruction construct_command(Command, const char *[], int);
-int send_message_blocking(ID);
-MessageSendingStatus uart_send_and_block(char *, size_t, char *, size_t);
 void queue_send(ID msg_id, ID target, bool use_router);
 void message_sending_task(void *);
 
