@@ -196,7 +196,7 @@ void router_parse_rquery(Router *router, ID from_node, char *buffer) {
     }
 
     char *saveptr = NULL;
-    char *token   = strtok_r(buffer, "|", &saveptr);
+    char *token   = strtok_r(buffer, ";", &saveptr);
     if (!token) {
         return;
     }
@@ -209,7 +209,7 @@ void router_parse_rquery(Router *router, ID from_node, char *buffer) {
     int parsed = 0;
 
     // Remaining tokens: "dest:steps"
-    while ((token = strtok_r(NULL, "|", &saveptr)) != NULL) {
+    while ((token = strtok_r(NULL, ";", &saveptr)) != NULL) {
         if (advertised_count > 0 && parsed >= advertised_count) {
             break;  // processed as many as the sender claimed
         }
@@ -300,7 +300,7 @@ int router_answer_rquery(Router *router, NodeEntry *node_obj, int count, char *b
 
         n = snprintf(buffer + offset,
                      buffer_size - offset,
-                     "|%u:%d",
+                     ";%u:%d",
                      (unsigned) info_to_return[i].destination_node,
                      info_to_return[i].steps);
 
