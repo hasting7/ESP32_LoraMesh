@@ -6,6 +6,7 @@
 
 #include "freertos/semphr.h"
 
+#include "routing.h"
 #include "data_table.h"
 #include "esp_log.h"
 #include "node_globals.h"
@@ -27,6 +28,7 @@ NodeEntry *create_node_object(int address) {
     if (!new_entry) {
         return NULL;
     }
+
     new_entry->avg_rssi = 0;
     new_entry->avg_snr = 0;
     new_entry->messages = 0;
@@ -34,6 +36,8 @@ NodeEntry *create_node_object(int address) {
     new_entry->ping_task = NULL;
     new_entry->status = UNKNOWN;
     new_entry->address.i_addr = address;
+    new_entry->link_enabled = true;
+    new_entry->router = create_router((ID) address);
     new_entry->last_rquery = 0;
     int l = snprintf(new_entry->address.s_addr, sizeof new_entry->address.s_addr, "%u", (unsigned)address);
     new_entry->address.s_addr[l] = '\0';
@@ -219,7 +223,7 @@ int format_node_as_json(NodeEntry *data, char *out, int buff_size) {
 
     int n = sprintf(
         out,
-        "{\"name\" : \"%s\", \"address\" : \"%s\", \"avg_rssi\" : %.2f, \"avg_snr\" : %.2f, \"messages\" : %d, \"current_node\" : %d, \"last_connection\" : %.0f, \"status\" : %d}",
+        "{\"name\" : \"%s\", \"address\" : \"%s\", \"avg_rssi\" : %.2f, \"avg_snr\" : %.2f, \"messages\" : %d, \"current_node\" : %d, \"last_connection\" : %.0f, \"status\" : %d, \"link_enabled\" : %d}",
         (data->name[0] != '\0') ? data->name : "(null)",
         data->address.s_addr,
         data->avg_rssi,
@@ -227,7 +231,8 @@ int format_node_as_json(NodeEntry *data, char *out, int buff_size) {
         data->messages,
         data->address.i_addr == g_address.i_addr,
         seconds_since_last,
-        data->status
+        data->status,
+        data->link_enabled
     );
     out[buff_size - 1] = '\0';
     return n;

@@ -1,4 +1,5 @@
 #include "routing.h"
+#include "node_table.h"
 
 #include <limits.h>
 #include <stdlib.h>

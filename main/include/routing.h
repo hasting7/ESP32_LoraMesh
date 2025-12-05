@@ -2,10 +2,11 @@
 #define _ROUTING_H_
 
 #include <stddef.h>     // for size_t
-#include "node_table.h" // for NodeEntry, ID, NO_ID
+#include "node_globals.h"
 
 #define MAX_ROUTING_ENTRIES (4)
 
+typedef struct node_table_entry NodeEntry;
 typedef struct router_struct Router;
 
 // public API

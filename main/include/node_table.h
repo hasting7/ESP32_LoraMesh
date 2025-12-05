@@ -9,6 +9,8 @@
 #include "node_globals.h"
 #include "lora_uart.h"
 
+typedef struct router_struct Router;
+
 typedef enum {
         ALIVE,
         DEAD,
@@ -16,6 +18,7 @@ typedef enum {
 } NodeStatus;
 
 typedef struct node_table_entry {
+        Router *router;
         char name[32];
         Address address;
         float avg_rssi;                 // avg rssi coming from node to this node
@@ -26,6 +29,7 @@ typedef struct node_table_entry {
         NodeStatus status;      // 1 for can reach 0 for cant reach
         ID ping_id;
         TaskHandle_t ping_task;
+        bool link_enabled;
 
         uint32_t last_rquery;
         struct node_table_entry *next;

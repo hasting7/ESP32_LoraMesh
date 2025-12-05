@@ -1,5 +1,8 @@
 #include "maintenance.h"
 
+#include "node_table.h"
+#include "routing.h"
+
 // static void parse_new_nodes(const char *content);
 // static int gather_nodes(char *out_buffer);
 static void update_name(ID origin_node, char buffer[32]);
@@ -55,23 +58,6 @@ void handle_maintenance_msg(ID msg_id) {
         }
     }
 
-    // // DISCOVERY
-
-    // // branch based on what kinda maintenace
-    // if (strncmp(respond_to_msg->content, "discovery", 9) == 0) {
-    //     len = gather_nodes(buffer);
-    //     printf("gathered nodes (%d) \"%s\"\n",len,buffer);
-    //     // recivce discovery command
-
-    // } else if (respond_to_msg->ack_for) {
-    //     // if msg is resposne to a discovery node
-    //     DataEntry *acked_msg = msg_find(respond_to_msg->ack_for);
-    //     // if it is the discovery message then deal with it
-    //     if (strncmp(acked_msg->content, "discovery", 9) == 0) {
-    //         parse_new_nodes(respond_to_msg->content);
-    //     }
-    // }
-
     // GLOBAL BCAST
 
     if (strncmp(respond_to_msg->content, "gbcast", 7) == 0) {
@@ -99,6 +85,74 @@ void handle_maintenance_msg(ID msg_id) {
 
     }
 
+    // RQUERY
+
+    if (strncmp(respond_to_msg->content, "rquery", 6) == 0) { 
+        // provide router details
+
+    } else if (respond_to_msg->ack_for) {
+        // if msg is resposne to a discovery node
+        DataEntry *acked_msg = msg_find(respond_to_msg->ack_for);
+        // if it is the discovery message then deal with it
+        if (strncmp(acked_msg->content, "rquery", 6) == 0) {
+            // data in resp to rquery
+        }
+
+    }
+
+    // UNLINK
+
+    if (strncmp(respond_to_msg->content, "unlink", 6) == 0) { 
+        // do whats needed to unlink
+        // this should only be allowed if they are direct neighbors (steps = 1)
+        if (respond_to_msg->steps != 1) {
+            // no we should not allow for unlinks when nodes are more than 1 step appart
+            buffer[len++] = 'n';
+        } else {
+            NodeEntry *linked_node = get_node_ptr(respond_to_msg->origin_node);
+            NodeEntry *this_node = get_node_ptr(g_address.i_addr);
+            // yes we should cut the link
+            // tell router we are unlinking
+            router_unlink_node(this_node->router, respond_to_msg->origin_node);
+            // tell node the same
+            linked_node->link_enabled = false;
+            buffer[len++] = 'y';
+        }
+        buffer[len] = '\0';
+
+    } else if (respond_to_msg->ack_for) {
+        // if msg is resposne to a discovery node
+        DataEntry *acked_msg = msg_find(respond_to_msg->ack_for);
+        // if it is the discovery message then deal with it
+        if (strncmp(acked_msg->content, "unlink", 6) == 0) {
+            if (respond_to_msg->content[0] == 'y') {
+                // other node unlinked so we can unlink
+                NodeEntry *linked_node = get_node_ptr(respond_to_msg->origin_node);
+                NodeEntry *this_node = get_node_ptr(g_address.i_addr);
+                // tell router we are unlinking
+                router_unlink_node(this_node->router, respond_to_msg->origin_node);
+                // tell node the same
+                linked_node->link_enabled = false;
+            }
+        }
+    }
+
+    // LINK
+
+    if (strncmp(respond_to_msg->content, "link", 4) == 0) { 
+        // for link i should relink no questions asked
+
+        NodeEntry *unlinked_node = get_node_ptr(respond_to_msg->origin_node);
+        NodeEntry *this_node = get_node_ptr(g_address.i_addr);
+        // yes we should establish the link
+        // tell router we are linking
+        router_link_node(this_node->router, respond_to_msg->origin_node);
+        // tell node the same
+        unlinked_node->link_enabled = true;
+
+    }
+    // no ack for link
+
 
     
     if (len) {
@@ -120,76 +174,11 @@ static void update_name(ID origin_node, char buffer[32]) {
 }
 
 
-// static int gather_nodes(char *out_buffer) {
-//     if (!out_buffer) {
-//         printf("No buffer given\n");
-//         return 0;
-//     }
-//     int count = 0;
-//     char node_list_buffer[256] = { 0 };
-//     int len = 0;
-//     NodeEntry *walk = g_node_table;
-
-//     while (walk) {
-//         len = strlcat(node_list_buffer, walk->address.s_addr, 256);
-//         node_list_buffer[len++] = ':';
-//         node_list_buffer[len] = '\0';
-//         count++;
-//         walk = walk->next;
-//     }
-//     if (count == 0) {
-//         printf("No Nodes\n");
-//         return 0;
-//     }
-//     node_list_buffer[--len] = '\0'; // remove last ','
-
-//     return sprintf(out_buffer, "%d:%s", count, node_list_buffer);
-// }
-
-
-// static void parse_new_nodes(const char *content) {
-//     if (!content) return;
-
-//     const char *p = content;
-//     char *end = NULL;
-
-//     // 1) Parse count
-//     long count = strtol(p, &end, 10);
-//     if (end == p || *end != ':') {
-//         printf("Bad node list header: \"%s\"\n", content);
-//         return;
-//     }
-
-//     printf("%ld nodes found\n", count);
-
-//     p = end + 1; // move past ':'
-
-//     // 2) Parse each ID
-//     for (long i = 0; i < count && *p; i++) {
-//         long id_val = strtol(p, &end, 10);
-//         if (end == p) {
-//             printf("Failed to parse node %ld in \"%s\"\n", i, content);
-//             break;
-//         }
-
-//         ID id = (ID)id_val;
-//         printf("Node %ld: %hd\n", i, id);
-//         NodeEntry *created = node_create_if_needed(id);
-//         if (created) {
-//             attempt_to_reach_node(id);
-//         }
-//         p = end;
-
-//         if (*p == ':') {
-//             p++;
-//         }
-//     }
-// }
-
 void resolve_system_command(char *cmd_buffer) {
     printf("System command: %s\n",cmd_buffer);
 
     char name[32];
+    ID node_id;
     if (sscanf(cmd_buffer, "SYS+NAME=%31[^\r\n]",name)) {
         name[31] = '\0';
         int len = strlen(name);
@@ -197,5 +186,34 @@ void resolve_system_command(char *cmd_buffer) {
         NodeEntry *node = get_node_ptr(g_address.i_addr);
         strlcpy(node->name, name, 32);
         node->name[len] = '\0';
+    } else if (sscanf(cmd_buffer, "SYS+LINK=%hu",&node_id)) {
+        if (node_id == g_address.i_addr) return;
+        NodeEntry *unlinked_node = get_node_ptr(node_id);
+        if (!unlinked_node) {
+            printf("[LINK] Node with id = %hu not found\n",node_id);
+            return;
+        }
+        NodeEntry *this_node = get_node_ptr(g_address.i_addr);
+        router_link_node(this_node->router, node_id);
+        unlinked_node->link_enabled = true;
+
+        // send msg of re link to neighbor
+        ID unlink_msg = create_data_object(NO_ID, MAINTENANCE, "link", g_address.i_addr, unlinked_node->address.i_addr, g_address.i_addr, 0, 0, 0, NO_ID);
+        queue_send(unlink_msg, unlinked_node->address.i_addr);
+
+    } else if (sscanf(cmd_buffer, "SYS+UNLINK=%hu",&node_id)) {
+        if (node_id == g_address.i_addr) {
+            printf("[UNLINK] Cannot unlink from self\n");
+            return;
+        }
+        // disable link
+        NodeEntry *linked_node = get_node_ptr(node_id);
+        if (!linked_node) {
+            printf("[UNLINK] Node with id = %hu not found\n",node_id);
+            return;
+        }
+
+        ID unlink_msg = create_data_object(NO_ID, MAINTENANCE, "unlink", g_address.i_addr, node_id, g_address.i_addr, 0, 0, 0, NO_ID);
+        queue_send(unlink_msg, node_id);
     }
 }

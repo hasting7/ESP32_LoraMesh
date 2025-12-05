@@ -4,6 +4,7 @@
 #include "hash_table.h"
 
 #define BROADCAST_ID (0)
+#define NO_ID (0)
 
 typedef uint16_t ID;
 

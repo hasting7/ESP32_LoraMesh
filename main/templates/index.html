@@ -109,6 +109,7 @@
           <thead>
             <tr>
               <th>Addr</th>
+              <th>Link Status</th>
               <th>Name</th>
               <th># Msgs</th>
               <th>Avg RSSI</th>
@@ -476,9 +477,15 @@
           status = "Unknown";
         }
 
+        let link_status = "Active"
+        if (n.link_enabled === 0) {
+          link_status = "Cut"
+        }
+
         tr.innerHTML =
           `<td>${esc(n.address)}</td>` +
           `<td>${esc(n.name)}</td>` +
+          `<td>${link_status}</td>` +
           `<td>${esc(n.messages ?? 0)}</td>` +
           `<td>${avgRssi}</td>` +
           `<td>${avgSnr}</td>` +
