@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <time.h>
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "freertos/semphr.h"
 
 #include "routing.h"
@@ -16,6 +18,7 @@ NodeEntry *g_node_table = NULL;
 static SemaphoreHandle_t g_ntb_mutex;
 static const char *TAG = "NODE TABLE";
 static const int REQUEST_STATUS_TIME = 120;
+static const float EMA_SMOOTHING = 0.15;
 
 void node_table_init(void) {
     ESP_LOGI(TAG, "NODE TABLE INIT");
