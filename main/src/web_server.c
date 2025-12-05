@@ -22,8 +22,6 @@
 #include "mesh_config.h"
 #include "node_table.h"
 
-
-
 int cmp_dataentry_timestamp_asc(const void *a, const void *b) {
     const DataEntry *da = *(DataEntry * const *)a;
     const DataEntry *db = *(DataEntry * const *)b;
@@ -377,8 +375,5 @@ void wifi_start_softap(Address *address) {
 
     start_http_server();
 
-    address->i_addr = (int) suffix;
-    int l = snprintf(address->s_addr, sizeof address->s_addr, "%u", (unsigned)suffix);
-    address->s_addr[l] = '\0';
-
+    address->i_addr = (ID) suffix;
 }

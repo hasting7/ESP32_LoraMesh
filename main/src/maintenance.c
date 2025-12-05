@@ -175,7 +175,7 @@ static void update_name(ID origin_node, char buffer[32]) {
         heard_node->name[c] = buffer[c];
     }
     heard_node->name[c] = '\0';
-    printf("Node id = %s new name is: %s\n",heard_node->address.s_addr, heard_node->name);
+    printf("Node id = %hu new name is: %s\n",heard_node->address.i_addr, heard_node->name);
 }
 
 

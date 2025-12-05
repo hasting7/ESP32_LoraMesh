@@ -14,6 +14,7 @@ typedef struct {
 } Address;
 
 extern Address g_address;
+extern NodeEntry *current_node;
 extern HashTable *g_msg_table;
 
 uint16_t rand_id(void);

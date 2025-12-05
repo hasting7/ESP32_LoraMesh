@@ -39,8 +39,6 @@ NodeEntry *create_node_object(int address) {
     new_entry->link_enabled = true;
     new_entry->router = create_router((ID) address);
     new_entry->last_rquery = 0;
-    int l = snprintf(new_entry->address.s_addr, sizeof new_entry->address.s_addr, "%u", (unsigned)address);
-    new_entry->address.s_addr[l] = '\0';
 
     // new nodes should inherit last connection time from parents
     time(&new_entry->last_connection);
@@ -60,7 +58,7 @@ NodeEntry *create_node_object(int address) {
 
     xSemaphoreGive(g_ntb_mutex);
 
-    ESP_LOGI(TAG, "Node added (%s)",new_entry->address.s_addr);
+    ESP_LOGI(TAG, "Node added (%hu)",new_entry->address.i_addr);
 
     return new_entry;
 }
@@ -223,9 +221,9 @@ int format_node_as_json(NodeEntry *data, char *out, int buff_size) {
 
     int n = sprintf(
         out,
-        "{\"name\" : \"%s\", \"address\" : \"%s\", \"avg_rssi\" : %.2f, \"avg_snr\" : %.2f, \"messages\" : %d, \"current_node\" : %d, \"last_connection\" : %.0f, \"status\" : %d, \"link_enabled\" : %d}",
+        "{\"name\" : \"%s\", \"address\" : \"%hu\", \"avg_rssi\" : %.2f, \"avg_snr\" : %.2f, \"messages\" : %d, \"current_node\" : %d, \"last_connection\" : %.0f, \"status\" : %d, \"link_enabled\" : %d}",
         (data->name[0] != '\0') ? data->name : "(null)",
-        data->address.s_addr,
+        data->address.i_addr,
         data->avg_rssi,
         data->avg_snr,
         data->messages,
