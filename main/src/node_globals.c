@@ -7,6 +7,7 @@
 HashTable *g_msg_table = NULL;
 ID g_my_address = NO_ID;
 NodeEntry *g_this_node = NULL;
+Router    *g_router = NULL;
 
 ID rand_msg_id(void) {
     ID x;

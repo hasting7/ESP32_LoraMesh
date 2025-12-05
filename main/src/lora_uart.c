@@ -249,8 +249,8 @@ void queue_send(ID msg_id, ID target, bool use_router) {
     DataEntry *data = msg_find(msg_id);
     ID final_target = target;
     if (use_router) {
-        router_print(g_this_node->router);
-        final_target = router_query_intermediate(g_this_node->router, target);
+        router_print(g_router);
+        final_target = router_query_intermediate(g_router, target);
         printf("ROUTER: sending msg (%hu) to %hu as intermediate to %hu\n",msg_id, final_target, target);
         if (final_target == NO_ID) {
             printf("ERROR ROUTER CANNOT RESOLVE WHERE TO SEND MSG: %hu\n",msg_id);
@@ -297,7 +297,7 @@ static void rcv_handler_task(void *arg) {
                 // from the last node to receiving at this node is a step
                 step +=1;
 
-                router_update(g_this_node->router, origin, dest, from, step);
+                router_update(g_router, origin, dest, from, step);
 
 
                 // check to see if id already exists.

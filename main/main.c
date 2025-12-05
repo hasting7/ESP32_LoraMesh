@@ -11,6 +11,7 @@
 #include "web_server.h"
 #include "esp_log.h"
 #include "maintenance.h"
+#include "routing.h"
 
 static const char *TAG = "Main";
 
@@ -25,6 +26,7 @@ void app_main(void)
     g_my_address = address;
     ESP_LOGI(TAG, "Address is %d", address);
     g_this_node = create_node_object(address);
+    g_router = create_router(address);
 
     uart_init();
 

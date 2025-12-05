@@ -40,7 +40,6 @@ NodeEntry *create_node_object(ID address) {
     new_entry->status = UNKNOWN;
     new_entry->address = address;
     new_entry->link_enabled = true;
-    new_entry->router = create_router(address);
     new_entry->last_rquery = 0;
 
     // new nodes should inherit last connection time from parents

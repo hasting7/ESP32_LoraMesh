@@ -21,6 +21,7 @@ typedef uint16_t ID;
 extern HashTable *g_msg_table;
 extern ID         g_my_address;
 extern NodeEntry *g_this_node;
+extern Router    *g_router;
 
 ID rand_id(void);
 ID rand_msg_id(void);

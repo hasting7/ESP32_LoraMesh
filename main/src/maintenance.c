@@ -95,7 +95,7 @@ void handle_maintenance_msg(ID msg_id) {
     if (strncmp(respond_to_msg->content, "rquery", 7) == 0) { 
         NodeEntry *from_node = get_node_ptr(respond_to_msg->src_node);
         // this nodes router and the node obj of the src
-        len = router_answer_rquery(g_this_node->router, from_node, 5, buffer, 240);
+        len = router_answer_rquery(g_router, from_node, 5, buffer, 240);
         // provide router details
 
     } else if (respond_to_msg->ack_for != NO_ID) {
@@ -103,7 +103,7 @@ void handle_maintenance_msg(ID msg_id) {
         DataEntry *acked_msg = msg_find(respond_to_msg->ack_for);
         // if it is the discovery message then deal with it
         if (strncmp(acked_msg->content, "rquery", 7) == 0) {
-            router_parse_rquery(g_this_node->router, respond_to_msg->src_node, respond_to_msg->content);
+            router_parse_rquery(g_router, respond_to_msg->src_node, respond_to_msg->content);
         }
     }
 
@@ -120,7 +120,7 @@ void handle_maintenance_msg(ID msg_id) {
             NodeEntry *linked_node = get_node_ptr(respond_to_msg->origin_node);
             // yes we should cut the link
             // tell router we are unlinking
-            router_unlink_node(g_this_node->router, respond_to_msg->origin_node);
+            router_unlink_node(g_router, respond_to_msg->origin_node);
             // tell node the same
             linked_node->link_enabled = false;
             buffer[len++] = 'y';
@@ -137,7 +137,7 @@ void handle_maintenance_msg(ID msg_id) {
                 // other node unlinked so we can unlink
                 NodeEntry *linked_node = get_node_ptr(respond_to_msg->origin_node);
                 // tell router we are unlinking
-                router_unlink_node(g_this_node->router, respond_to_msg->origin_node);
+                router_unlink_node(g_router, respond_to_msg->origin_node);
                 // tell node the same
                 linked_node->link_enabled = false;
             }
@@ -152,7 +152,7 @@ void handle_maintenance_msg(ID msg_id) {
         NodeEntry *unlinked_node = get_node_ptr(respond_to_msg->origin_node);
         // yes we should establish the link
         // tell router we are linking
-        router_link_node(g_this_node->router, respond_to_msg->origin_node);
+        router_link_node(g_router, respond_to_msg->origin_node);
         // tell node the same
         unlinked_node->link_enabled = true;
 
@@ -202,7 +202,7 @@ void resolve_system_command(char *cmd_buffer) {
             return;
         }
 
-        router_link_node(g_this_node->router, node_id);
+        router_link_node(g_router, node_id);
         unlinked_node->link_enabled = true;
 
         // send msg of re link to neighbor
