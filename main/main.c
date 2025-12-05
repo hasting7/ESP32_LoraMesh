@@ -22,13 +22,14 @@ void app_main(void)
 {
     msg_table_init();
     node_table_init();
-    uart_init();
-
     wifi_start_softap(&g_address);
     ESP_LOGI(TAG, "Address is %d", g_address.i_addr);
+    create_node_object(g_address.i_addr);
+
+    uart_init();
 
     ID query_baud = create_command("AT+IPR?");
-    queue_send(query_baud, NO_ID);
+    queue_send(query_baud, NO_ID, false);
 
     ESP_LOGI(TAG, "Setting node address to %d", g_address.i_addr);
 
@@ -37,9 +38,9 @@ void app_main(void)
     update_addr_buffer[31] = '\0';
 
     ID addr_set_cmd = create_command(update_addr_buffer);
-    queue_send(addr_set_cmd, NO_ID);
+    queue_send(addr_set_cmd, NO_ID, false);
 
-    create_node_object(g_address.i_addr);
+    // create_node_object(g_address.i_addr);
 
     // create message sending task
 
@@ -50,6 +51,6 @@ void app_main(void)
     // find neighbors
  
     ID neighbor_msg_id = create_data_object(NO_ID, MAINTENANCE, "gbcast", g_address.i_addr, 0, g_address.i_addr, 0, 0, 0, NO_ID);
-    queue_send(neighbor_msg_id, 0);
+    queue_send(neighbor_msg_id, 0, false);
 
 }
