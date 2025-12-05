@@ -1,6 +1,9 @@
 #include "routing.h"
 
 #include <limits.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 
 #define MAX_ROUTING_ENTRIES (4)
 
@@ -16,6 +19,7 @@ typedef struct destination_approximator_struct {
 	IntermediateStepInfo best_routing_info[MAX_ROUTING_ENTRIES];
 	ID destination_node;
 	int count;
+	uint32_t last_updated_seq;
 
 	struct destination_approximator_struct *next;
 } DestinationApproximator;
@@ -25,6 +29,7 @@ typedef struct {
 	DestinationApproximator *destination_list;
 	int approximators;
 	ID node_id;
+	uint32_t discovery_seq;
 } Router;
 
 // public
@@ -34,6 +39,8 @@ void router_update(Router *router, ID origin_node, ID destination_node, ID from_
 void router_bad_intermediate(Router *router, ID intermediate_node);
 void router_link_node(Router *router, ID node);
 void router_unlink_node(Router *router, ID bad_node);
+void router_answer_rquery(Router *router, NodeEntry *node_obj, int count, char *buffer, size_t buffer_size);
+void router_parse_rquery(Router *router, ID from_node, char *buffer);
 
 
 // hidden
@@ -41,7 +48,8 @@ static DestinationApproximator *create_destination_approximator(Router *router, 
 static DestinationApproximator *get_destination_approximator(Router *router, ID destination_node);
 static bool update_approximation_entry(DestinationApproximator *approximator, ID intermediate_node, int steps);
 static bool remove_approximation_entry(DestinationApproximator *approximator, ID intermediate_node);
-static ID choose_approximation_route(DestinationApproximator *approximator);
+static IntermediateStepInfo *choose_approximation_route(DestinationApproximator *approximator);
+static void router_incorporate_rquery(Router *router, ID from_node, ID destination_node, int steps)
 
 
 Router *create_router(ID for_node) {
@@ -99,6 +107,10 @@ static bool update_approximation_entry(DestinationApproximator *approximator, ID
     int max_steps_index = -1;
     int max_steps = -1;
 
+    // update counter
+    router->discovery_seq++;
+	approx->last_updated_seq = router->discovery_seq;
+
     for (int i = 0; i < MAX_ROUTING_ENTRIES; i++) {
         IntermediateStepInfo *info = &approximator->best_routing_info[i];
         if (info->in_use) {
@@ -149,25 +161,23 @@ static bool remove_approximation_entry(DestinationApproximator *approximator, ID
     return false;
 }
 
-static ID choose_approximation_route(DestinationApproximator *approximator) {
+static IntermediateStepInfo *choose_approximation_route(DestinationApproximator *approximator) {
     if (!approximator) {
-        return NO_ID;
+        return NULL;
     }
 
-    ID best_id = NO_ID;
-    int best_steps = INT_MAX;
+    IntermediateStepInfo *best_found = NULL;
 
     for (int i = 0; i < MAX_ROUTING_ENTRIES; i++) {
         IntermediateStepInfo *info = &approximator->best_routing_info[i];
         if (!info->in_use || !info->link_active) continue;
 
-        if (info->steps < best_steps) {
-            best_steps = info->steps;
-            best_id = info->intermediate_node;
+        if (!best_found || info->steps < best_found->steps) {
+            best_found = info;
         }
     }
 
-    return best_id;
+    return best_found;
 }
 
 void router_unlink_node(Router *router, ID bad_node) {
@@ -192,8 +202,130 @@ void router_link_node(Router *router, ID node) {
     }
 }
 
-void router_answer_rquery(Router *router, ID requestor_node, int count, char *buffer) {
+void router_parse_rquery(Router *router, ID from_node, char *buffer) {
+    if (!router || !buffer) {
+        return;
+    }
 
+    char *saveptr = NULL;
+    char *token   = strtok_r(buffer, "|", &saveptr);
+    if (!token) {
+        return;
+    }
+
+    int advertised_count = 0;
+    if (sscanf(token, "%d", &advertised_count) != 1) {
+        advertised_count = 0;  // treat as "unknown / unlimited"
+    }
+
+    int parsed = 0;
+
+    // Remaining tokens: "dest:steps"
+    while ((token = strtok_r(NULL, "|", &saveptr)) != NULL) {
+        if (advertised_count > 0 && parsed >= advertised_count) {
+            break;  // processed as many as the sender claimed
+        }
+
+        unsigned int tmp_id = 0;  // for %u
+        int steps = 0;
+
+        // dest is uint32_t (ID), steps is int
+        if (sscanf(token, "%u:%d", &tmp_id, &steps) != 2) {
+            // malformed pair, skip
+            continue;
+        }
+
+        ID dest_id = (ID)tmp_id;
+        router_incorporate_rquery(router, from_node, dest_id, steps);
+        parsed++;
+    }
+}
+
+
+void router_answer_rquery(Router *router, NodeEntry *node_obj, int count, char *buffer, size_t buffer_size) {
+	uint32_t node_last_updated = node_obj->last_rquery;
+
+	typedef struct {
+		ID destination_node;
+		int steps;
+	} RqueryResult;
+
+	RqueryResult info_to_return[count];
+	DestinationApproximator *potential_other_approximators[count];
+	int inter_steps_found = 0;
+	int potetial_approx_found = 0;
+	IntermediateStepInfo *best_step = NULL;
+
+	DestinationApproximator *approx = router->destination_list;
+	for (; approx != NULL; approx = approx->next) {
+	    if (inter_steps_found >= count) break;
+	    if (approx->destination_node == node_obj->id) continue; // skip self
+
+	    if (approx->last_updated_seq > node_last_updated) {
+	        // NEW info for this requester
+	        IntermediateStepInfo *best_step = choose_approximation_route(approx);
+	        if (!best_step) continue; 
+
+	        info_to_return[inter_steps_found++] =
+	            (RqueryResult){
+	                .destination_node = approx->destination_node,
+	                .steps = best_step->steps
+	            };
+	    } else {
+	        if (potetial_approx_found >= count) continue; 
+	        potential_other_approximators[potetial_approx_found++] = approx;
+	    }
+	}
+
+
+	if (inter_steps_found < count) {
+		approx = NULL;
+		for (int i = 0; i < potetial_approx_found; i++) {
+			if (inter_steps_found >= count) break; // too many
+			approx = potential_other_approximators[i];
+			best_step = choose_approximation_route(approx);
+			if (!best_step) continue; 
+			info_to_return[inter_steps_found++] = (RqueryResult){ .destination_node = approx->destination_node,
+																  .steps = best_step->steps};
+		}
+	}
+	node_obj->last_rquery = router->discovery_seq;
+
+	if (buf_size == 0) return; // nothing we can do
+
+    int offset = 0;
+
+    // 1) write the count: count
+    int n = snprintf(buffer + offset, buf_size - offset, "%d", inter_steps_found);
+    if (n < 0 || (size_t)n >= buf_size - offset) {
+        // truncated or error; ensure null-termination and bail
+        buffer[buf_size - 1] = '\0';
+        node_obj->last_rquery = router->discovery_seq;
+        return;
+    }
+    offset += n;
+
+    for (int i = 0; i < inter_steps_found; i++) {
+        if (offset >= (int)buf_size - 1) {
+            break; // no more space
+        }
+
+        n = snprintf(buffer + offset,
+                     buf_size - offset,
+                     "|%u:%d",
+                     info_to_return[i].destination_node,
+                     info_to_return[i].steps);
+
+        if (n < 0 || (size_t)n >= buf_size - offset) {
+            // truncated or error; stop appending
+            buffer[buf_size - 1] = '\0';
+            break;
+        }
+
+        offset += n;
+    }
+
+    buffer[offset] = '\0';
 }
 
 
@@ -207,7 +339,14 @@ ID router_query_intermediate(Router *router, ID destination_node) {
 		printf("NO APPROXIMATOR TABLE FOR DESTINATION NODE %d\n",destination_node);
 		return NO_ID;
 	}
-	return choose_approximation_route(approx);
+	IntermediateStepInfo *info = choose_approximation_route(approx);
+	if (!info) return NO_ID;
+	return info->intermediate_node;
+}
+
+static void router_incorporate_rquery(Router *router, ID from_node, ID destination_node, int steps) {
+	DestinationApproximator *dest_approx = get_destination_approximator(router, destination_node);
+	update_approximation_entry(dest_approx, from_node, steps + 1);
 }
 
 void router_update(Router *router, ID origin_node, ID destination_node, ID from_node, int steps) {
