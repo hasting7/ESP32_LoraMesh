@@ -103,7 +103,13 @@ static bool update_approximation_entry(Router *router, DestinationApproximator *
         IntermediateStepInfo *info = &approximator->best_routing_info[i];
         if (info->in_use) {
             if (info->intermediate_node == intermediate_node) {
-                info->steps = steps;
+            	if (intermediate_node == approximator->destination_node) {
+            		// this is a exact neighbor
+            		info->steps = 1;
+            	} else {
+            		// maybe adjust this later to take min
+            		info->steps = steps;
+            	}
                 return true;
             }
 

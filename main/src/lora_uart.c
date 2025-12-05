@@ -236,7 +236,7 @@ void queue_send(ID msg_id, ID target, bool use_router) {
         NodeEntry *node = get_node_ptr(g_address.i_addr);
         router_print(node->router);
         final_target = router_query_intermediate(node->router, target);
-        printf("ROUTER: sending msg (%hu) to %hu as intermediate to %hu\n",msg_id, intermediate, target);
+        printf("ROUTER: sending msg (%hu) to %hu as intermediate to %hu\n",msg_id, final_target, target);
         if (intermediate == NO_ID) {
             printf("ERROR ROUTER CANNOT RESOLVE WHERE TO SEND MSG: %hu\n",msg_id);
             return; // fix this
