@@ -363,4 +363,25 @@ void router_bad_intermediate(Router *router, ID intermediate_node) {
 	}
 } 
 
+void router_print(Router *router) {
+	printf("Router For Node %hu\n",router->node_id);
+	DestinationApproximator *approx = router->destination_list;
+	while (approx) {
+		printf("\tTo reach %hu: ",approx->destination_node);
+		for (int i = 0; i < MAX_ROUTING_ENTRIES; i++) {
+			IntermediateStepInfo *info = &approx->best_routing_info[i];
+			if (info->in_use) {
+				if (info->link_active) {
+					printf("active");
+				} else {
+					printf("cut");
+				}
+				printf("(use %hu, %d steps away) ",info->intermediate_node, info->steps);
+			}
+		}
+		printf("\n");
+		approx = approx->next;
+	}
+}
+
 

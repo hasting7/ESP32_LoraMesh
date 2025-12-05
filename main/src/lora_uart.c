@@ -70,14 +70,12 @@ int format_message_command(ID msg_id, char *command_buffer, size_t length) {
     payload_len = snprintf(payload, sizeof(payload), "%s,%u,%u,%d,%d,%u,%u",
                         data->content, data->origin_node, data->dst_node, data->steps, data->message_type, data->id, data->ack_for);
 
-    printf("PAYLOAD: %s\n",payload);
     int final_str_length = snprintf(command_buffer, length, "AT+SEND=%d,%d,%s\r\n", data->target_node, payload_len, payload);
 
     printf("COMMAND: %s",command_buffer);
 
     return final_str_length;
 
-    return 1;
 }
 
 
@@ -236,7 +234,9 @@ void queue_send(ID msg_id, ID target, bool use_router) {
     ID final_target = target;
     if (use_router) {
         NodeEntry *node = get_node_ptr(g_address.i_addr);
-        ID intermediate = router_query_intermediate(node->router, target);
+        router_print(node->router);
+        final_target = router_query_intermediate(node->router, target);
+        printf("ROUTER: sending msg (%hu) to %hu as intermediate to %hu\n",msg_id, intermediate, target);
         if (intermediate == NO_ID) {
             printf("ERROR ROUTER CANNOT RESOLVE WHERE TO SEND MSG: %hu\n",msg_id);
             return; // fix this

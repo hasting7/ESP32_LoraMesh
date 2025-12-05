@@ -18,5 +18,6 @@ void router_link_node(Router *router, ID node);
 void router_unlink_node(Router *router, ID bad_node);
 int router_answer_rquery(Router *router, NodeEntry *node_obj, int count, char *buffer, size_t buffer_size);
 void router_parse_rquery(Router *router, ID from_node, char *buffer);
+void router_print(Router *router);
 
 #endif
