@@ -26,8 +26,8 @@ typedef struct node_table_entry {
         NodeStatus status;      // 1 for can reach 0 for cant reach
         ID ping_id;
         TaskHandle_t ping_task;
-        bool linked; // true if direct communication is allowed false if not
 
+        uint32_t last_rquery;
         struct node_table_entry *next;
 } NodeEntry;
 

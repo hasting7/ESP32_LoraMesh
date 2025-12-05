@@ -34,6 +34,7 @@ NodeEntry *create_node_object(int address) {
     new_entry->ping_task = NULL;
     new_entry->status = UNKNOWN;
     new_entry->address.i_addr = address;
+    new_entry->last_rquery = 0;
     int l = snprintf(new_entry->address.s_addr, sizeof new_entry->address.s_addr, "%u", (unsigned)address);
     new_entry->address.s_addr[l] = '\0';
 
