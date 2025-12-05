@@ -3,11 +3,7 @@
 
 #include <stddef.h>
 
-typedef struct entry_struct {
-        int key;
-        void *value;
-        struct entry_struct *next;
-} Entry;
+typedef struct entry_struct Entry;
 
 typedef struct hash_table_struct {
         size_t size;

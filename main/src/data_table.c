@@ -37,7 +37,7 @@ DataEntry *msg_find(int key) {
 }
 
 ID create_command(char *content) {
-    return create_data_object(NO_ID, COMMAND, content, g_address.i_addr, g_address.i_addr, g_address.i_addr, 0, 0, 0, NO_ID);
+    return create_data_object(NO_ID, COMMAND, content, g_my_address, g_my_address, g_my_address, 0, 0, 0, NO_ID);
 }
 
 ID create_data_object(int id, MessageType type, char *content, int src, int dst, int origin, int steps, int rssi, int snr, ID ack_for)
@@ -78,9 +78,9 @@ ID create_data_object(int id, MessageType type, char *content, int src, int dst,
         new_entry->id = id;
     }
 
-    if (g_address.i_addr == origin) {
+    if (g_my_address == origin) {
         new_entry->stage = MSG_AT_SOURCE;
-    } else if (g_address.i_addr == dst) {
+    } else if (g_my_address== dst) {
         new_entry->stage = MSG_AT_DESTINATION;
     } else {
         new_entry->stage = MSG_RELAYED;

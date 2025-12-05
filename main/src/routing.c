@@ -253,7 +253,7 @@ int router_answer_rquery(Router *router, NodeEntry *node_obj, int count, char *b
 	DestinationApproximator *approx = router->destination_list;
 	for (; approx != NULL; approx = approx->next) {
 	    if (inter_steps_found >= count) break;
-	    if (approx->destination_node == node_obj->address.i_addr) continue; // skip self
+	    if (approx->destination_node == node_obj->address) continue; // skip self
 
 	    if (approx->last_updated_seq > node_last_updated) {
 	        // NEW info for this requester

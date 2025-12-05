@@ -20,6 +20,7 @@
 #include "data_table.h"
 #include "lora_uart.h"
 #include "node_table.h"
+#include "hash_table.h"
 
 int cmp_dataentry_timestamp_asc(const void *a, const void *b) {
     const DataEntry *da = *(DataEntry * const *)a;
@@ -241,9 +242,9 @@ static esp_err_t send_post_handler(httpd_req_t *req)
             NO_ID,
             (0 == target) ? BROADCAST : NORMAL,
             message, 
-            g_address.i_addr, 
+            g_my_address, 
             target, 
-            g_address.i_addr, 
+            g_my_address, 
             0, 0, 0, NO_ID
         );
     }

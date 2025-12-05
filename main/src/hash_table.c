@@ -5,6 +5,12 @@
 #include <stdlib.h>
 
 
+typedef struct entry_struct {
+        int key;
+        void *value;
+        struct entry_struct *next;
+} Entry;
+
 static inline uint32_t mix32(uint32_t x){
     x ^= x >> 16;
     x *= 0x7feb352dU;
@@ -138,48 +144,3 @@ void** sort_hash_to_array(HashTable *table, int (*cmp)(const void *, const void 
 
 	return entries;
 }
-
-// int main() {
-// 	HashTable *table = create_hashtable(10);
-
-// 	struct test_d *ptr;
-
-// 	for (int i = 0; i < 100; i++) {
-// 		ptr = malloc(sizeof(struct test_d));
-// 		ptr->a = (int) mix32(i) % (1000);
-// 		ptr->b = i;
-// 		hash_insert(table, i, (void *) ptr);
-// 	}
-
-// 	printf("table.size = %d\n",table->entries);
-
-
-
-// 	// for (int i = 99; i >= 0; i--) {
-// 	// 	int *status = (int *) hash_remove(table, i);
-// 	// 	if (status) {
-// 	// 		printf("table[%d] = %d Removed\n",i, *status);
-// 	// 	}
-// 	// 	printf("table.size = %d\n",table->entries);
-// 	// }
-// 	printf("SORTING\n");
-
-// 	void **sort_order = sort_hash_to_array(table, cmp);
-// 	for (int i = 0; i < table->entries; i++) {
-// 		struct test_d *data = (struct test_d *) sort_order[i];
-// 		printf("table order = a = %d, b = %d\n",data->a, data->b);
-// 	}
-// 	free(sort_order);
-
-// 	for (int i = 0; i < 100; i++) {
-// 		int *status = (int *) hash_find(table, i);
-// 		if (status) {
-// 			printf("table[%d] = %d found\n",i, *status);
-// 		}
-// 	}
-
-// 	// delete_hashtable(&table);
-
-
-// 	return 0;
-// }

@@ -23,7 +23,7 @@ void node_table_init(void) {
 }
 
 
-NodeEntry *create_node_object(int address) {
+NodeEntry *create_node_object(ID address) {
 	NodeEntry *new_entry = malloc(sizeof(NodeEntry));
     if (!new_entry) {
         return NULL;
@@ -35,20 +35,20 @@ NodeEntry *create_node_object(int address) {
     new_entry->misses = 0;
     new_entry->ping_task = NULL;
     new_entry->status = UNKNOWN;
-    new_entry->address.i_addr = address;
+    new_entry->address = address;
     new_entry->link_enabled = true;
-    new_entry->router = create_router((ID) address);
+    new_entry->router = create_router(address);
     new_entry->last_rquery = 0;
 
     // new nodes should inherit last connection time from parents
     time(&new_entry->last_connection);
     new_entry->ping_id = 0;
     // only add ping msg if not urself
-    if (g_address.i_addr != address) {
-        new_entry->ping_id = create_data_object(NO_ID, MAINTENANCE, "ping", g_address.i_addr, address, g_address.i_addr, 0, 0, 0, 0);
+    if (g_my_address != address) {
+        new_entry->ping_id = create_data_object(NO_ID, MAINTENANCE, "ping", g_my_address, address, g_my_address, 0, 0, 0, 0);
     }
 
-    int len =sprintf(new_entry->name, "Node %d", address);
+    int len =sprintf(new_entry->name, "Node %hu", address);
     new_entry->name[len] = '\0';
 
     xSemaphoreTake(g_ntb_mutex, portMAX_DELAY);
@@ -58,7 +58,7 @@ NodeEntry *create_node_object(int address) {
 
     xSemaphoreGive(g_ntb_mutex);
 
-    ESP_LOGI(TAG, "Node added (%hu)",new_entry->address.i_addr);
+    ESP_LOGI(TAG, "Node added (%hu)",new_entry->address);
 
     return new_entry;
 }
@@ -66,7 +66,7 @@ NodeEntry *create_node_object(int address) {
 NodeEntry *get_node_ptr(int address) {
 	NodeEntry *walk = g_node_table;
 	while (walk) {
-		if (walk->address.i_addr == address) return walk;
+		if (walk->address == address) return walk;
 		walk = walk->next;
 	}
 	return NULL;
@@ -138,7 +138,7 @@ void ping_suspect_node(void *args) {
 
     DataEntry *ping_msg = msg_find(node->ping_id);
     if (!ping_msg) { 
-        ESP_LOGW(TAG, "no ping msg for node %d",node->address.i_addr);
+        ESP_LOGW(TAG, "no ping msg for node %d",node->address);
         vTaskDelete(NULL); return; 
     }
 
@@ -149,7 +149,7 @@ void ping_suspect_node(void *args) {
 
     for (int i = 0; i < 4; i++) {
         // send ping
-        queue_send(node->ping_id, node->address.i_addr, true);
+        queue_send(node->ping_id, node->address, true);
 
         vTaskDelay(pdMS_TO_TICKS(delay * 1500));
 
@@ -187,8 +187,8 @@ void node_status_task(void *args) {
                        node->status == ALIVE) {
                 ESP_LOGW(TAG,
                          "Node (%d) is suspected to be dead. pinging...",
-                         node->address.i_addr);
-                attempt_to_reach_node(node->address.i_addr);
+                         node->address);
+                attempt_to_reach_node(node->address);
             }
 
             node = node->next;
@@ -223,11 +223,11 @@ int format_node_as_json(NodeEntry *data, char *out, int buff_size) {
         out,
         "{\"name\" : \"%s\", \"address\" : \"%hu\", \"avg_rssi\" : %.2f, \"avg_snr\" : %.2f, \"messages\" : %d, \"current_node\" : %d, \"last_connection\" : %.0f, \"status\" : %d, \"link_enabled\" : %d}",
         (data->name[0] != '\0') ? data->name : "(null)",
-        data->address.i_addr,
+        data->address,
         data->avg_rssi,
         data->avg_snr,
         data->messages,
-        data->address.i_addr == g_address.i_addr,
+        data->address == g_my_address,
         seconds_since_last,
         data->status,
         data->link_enabled

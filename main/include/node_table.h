@@ -20,7 +20,7 @@ typedef enum {
 typedef struct node_table_entry {
         Router *router;
         char name[32];
-        Address address;
+        ID address;
         float avg_rssi;                 // avg rssi coming from node to this node
         float avg_snr;                  // avg rssi coming from node to this node
         int messages;                   // total messages coming from node to this node
@@ -41,7 +41,7 @@ extern NodeEntry *g_node_table;
 
 NodeEntry *get_node_ptr(int);
 void node_table_init(void);
-NodeEntry *create_node_object(int);
+NodeEntry *create_node_object(ID);
 void update_metrics(NodeEntry *node, int rssi, int snr);
 int format_node_as_json(NodeEntry *, char *, int);
 int nodes_update(ID msg_id);

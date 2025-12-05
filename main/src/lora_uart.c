@@ -130,8 +130,7 @@ static int send_message_blocking(ID msg_id) {
 
     if (data->message_type == COMMAND) {
         // if msg was a command create a ack msg with the result of the command (and mark as acked ig)
-        ID addr = g_address.i_addr;
-        create_data_object(NO_ID, COMMAND, response_buffer, -1, addr, -1, 0, 0, 0, msg_id);
+        create_data_object(NO_ID, COMMAND, response_buffer, -1, g_my_address, -1, 0, 0, 0, msg_id);
         data->ack_status = 1;
     }
     ESP_LOGI(TAG, "Response = \"%s\" (code %d) for msg %d",response_buffer, send_status, msg_id);
@@ -250,9 +249,8 @@ void queue_send(ID msg_id, ID target, bool use_router) {
     DataEntry *data = msg_find(msg_id);
     ID final_target = target;
     if (use_router) {
-        NodeEntry *node = get_node_ptr(g_address.i_addr);
-        router_print(node->router);
-        final_target = router_query_intermediate(node->router, target);
+        router_print(g_this_node->router);
+        final_target = router_query_intermediate(g_this_node->router, target);
         printf("ROUTER: sending msg (%hu) to %hu as intermediate to %hu\n",msg_id, final_target, target);
         if (final_target == NO_ID) {
             printf("ERROR ROUTER CANNOT RESOLVE WHERE TO SEND MSG: %hu\n",msg_id);
@@ -289,7 +287,6 @@ void uart_init(void) {
 }
 
 static void rcv_handler_task(void *arg) {
-    NodeEntry *this_node = get_node_ptr(g_address.i_addr);;
     char line[256];
     for (;;) {
         if (xQueueReceive(q_rcv, line, portMAX_DELAY) == pdTRUE) {
@@ -300,7 +297,7 @@ static void rcv_handler_task(void *arg) {
                 // from the last node to receiving at this node is a step
                 step +=1;
 
-                router_update(this_node->router, origin, dest, from, step);
+                router_update(g_this_node->router, origin, dest, from, step);
 
 
                 // check to see if id already exists.
@@ -340,7 +337,7 @@ static void rcv_handler_task(void *arg) {
                         // mark it as acked because it is
                         acked_msg->ack_status = 1;
 
-                        if (dest != g_address.i_addr) {
+                        if (dest != g_my_address) {
                             // msg went from src -> dst. but now we wanna send to src
                             queue_send(id, acked_msg->src_node, true);
                         }
