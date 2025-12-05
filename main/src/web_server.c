@@ -225,10 +225,12 @@ static esp_err_t send_post_handler(httpd_req_t *req)
     free(buf);
 
     ID entry_id = NO_ID;
+    bool should_use_router = true;
 
     if (strncmp(message, "AT",2) == 0) {
         // this is a lora command
         url_decode_inplace(message);
+        should_use_router = false;
 
         entry_id = create_command(message);
     } else if (strncmp(message, "SYS", 3) == 0) {
@@ -250,7 +252,7 @@ static esp_err_t send_post_handler(httpd_req_t *req)
     }
 
     if (entry_id != NO_ID) {
-        queue_send(entry_id, target);
+        queue_send(entry_id, target, should_use_router);
     }
 
     ESP_LOGI(TAG, "POST /send message: \"%s\"", message);

@@ -41,6 +41,8 @@ void handle_maintenance_msg(ID msg_id) {
     }
 
     NodeEntry *this_node = get_node_ptr(g_address.i_addr);
+
+    bool should_ack_use_router = true;
     // buffer for message to send back
     char buffer[240];
     int len = 0;
@@ -74,7 +76,7 @@ void handle_maintenance_msg(ID msg_id) {
         buffer[len] = '\0';
 
         // now we need to broadcast the msg again
-        queue_send(msg_id, BROADCAST_ID);
+        queue_send(msg_id, BROADCAST_ID, false);
 
 
     } else if (respond_to_msg->ack_for) {
@@ -113,6 +115,7 @@ void handle_maintenance_msg(ID msg_id) {
             // no we should not allow for unlinks when nodes are more than 1 step appart
             buffer[len++] = 'n';
         } else {
+            should_ack_use_router = false;
             NodeEntry *linked_node = get_node_ptr(respond_to_msg->origin_node);
             // yes we should cut the link
             // tell router we are unlinking
@@ -129,6 +132,7 @@ void handle_maintenance_msg(ID msg_id) {
         // if it is the discovery message then deal with it
         if (strncmp(acked_msg->content, "unlink", 7) == 0) {
             if (respond_to_msg->content[0] == 'y') {
+                should_ack_use_router = false; // probably not needed but whatever
                 // other node unlinked so we can unlink
                 NodeEntry *linked_node = get_node_ptr(respond_to_msg->origin_node);
                 // tell router we are unlinking
@@ -160,7 +164,7 @@ void handle_maintenance_msg(ID msg_id) {
         // only send a response message using buffer IF len is not 0
         printf("MAINTENANCE ack for = %d\n",msg_id);
         ID response_msg = create_data_object(NO_ID, MAINTENANCE, buffer, g_address.i_addr, respond_to_msg->origin_node, g_address.i_addr, 0, 0, 0, msg_id);
-        queue_send(response_msg, respond_to_msg->src_node);
+        queue_send(response_msg, respond_to_msg->src_node, should_ack_use_router);
     }
 }
 
@@ -203,7 +207,7 @@ void resolve_system_command(char *cmd_buffer) {
 
         // send msg of re link to neighbor
         ID unlink_msg = create_data_object(NO_ID, MAINTENANCE, "link", g_address.i_addr, unlinked_node->address.i_addr, g_address.i_addr, 0, 0, 0, NO_ID);
-        queue_send(unlink_msg, unlinked_node->address.i_addr);
+        queue_send(unlink_msg, unlinked_node->address.i_addr, false);
 
     } else if (sscanf(cmd_buffer, "SYS+UNLINK=%hu",&node_id)) {
         if (node_id == g_address.i_addr) {
@@ -218,7 +222,7 @@ void resolve_system_command(char *cmd_buffer) {
         }
 
         ID unlink_msg = create_data_object(NO_ID, MAINTENANCE, "unlink", g_address.i_addr, node_id, g_address.i_addr, 0, 0, 0, NO_ID);
-        queue_send(unlink_msg, node_id);
+        queue_send(unlink_msg, node_id, false);
     }
 }
 
@@ -231,7 +235,7 @@ void rquery_task(void *arg) {
             g_address.i_addr, 0, g_address.i_addr,
             0, 0, 0, NO_ID
         );
-        queue_send(msg, 0);
+        queue_send(msg, 0, false);
     }
 }
 

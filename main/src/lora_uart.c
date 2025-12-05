@@ -18,6 +18,7 @@
 #include "node_globals.h"
 #include "node_table.h"
 #include "maintenance.h"
+#include "routing.h"
 
 
 static const char *TAG = "UART";
@@ -230,9 +231,19 @@ MessageSendingStatus uart_send_and_block(char *cmd, size_t length, char *resp_bu
 }
 
 
-void queue_send(ID msg_id, int target) {
+void queue_send(ID msg_id, ID target, bool use_router) {
     DataEntry *data = msg_find(msg_id);
-    data->target_node = target;
+    ID final_target = target;
+    if (use_router) {
+        NodeEntry *node = get_node_ptr(g_address.i_addr);
+        ID intermediate = router_query_intermediate(node->router, target);
+        if (intermediate == NO_ID) {
+            printf("ERROR ROUTER CANNOT RESOLVE WHERE TO SEND MSG: %hu\n",msg_id);
+            return; // fix this
+        }
+
+    }
+    data->target_node = final_target;
     data->transfer_status = QUEUED;
     xQueueSend(MessageQueue, &msg_id, pdMS_TO_TICKS(50));
 }
@@ -261,6 +272,7 @@ void uart_init(void) {
 }
 
 static void rcv_handler_task(void *arg) {
+    NodeEntry *this_node = get_node_ptr(g_address.i_addr);;
     char line[256];
     for (;;) {
         if (xQueueReceive(q_rcv, line, portMAX_DELAY) == pdTRUE) {
@@ -270,6 +282,8 @@ static void rcv_handler_task(void *arg) {
             if (parse_rcv_line(line, &from, &len, data, sizeof(data), &origin, &dest, &step, &msg_type, &id, &ack_for, &rssi, &snr)) {
                 // from the last node to receiving at this node is a step
                 step +=1;
+
+                router_update(this_node->router, origin, dest, from, step);
 
 
                 // check to see if id already exists.
@@ -311,7 +325,7 @@ static void rcv_handler_task(void *arg) {
 
                         if (dest != g_address.i_addr) {
                             // msg went from src -> dst. but now we wanna send to src
-                            queue_send(id, acked_msg->src_node);
+                            queue_send(id, acked_msg->src_node, true);
                         }
                         // if msg is an ACK
                         // the goal is to send it along the path it came

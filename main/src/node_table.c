@@ -151,7 +151,7 @@ void ping_suspect_node(void *args) {
 
     for (int i = 0; i < 4; i++) {
         // send ping
-        queue_send(node->ping_id, node->address.i_addr);
+        queue_send(node->ping_id, node->address.i_addr, true);
 
         vTaskDelay(pdMS_TO_TICKS(delay * 1500));
 
