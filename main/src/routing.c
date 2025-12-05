@@ -5,9 +5,6 @@
 #include <string.h>
 #include <stdio.h>
 
-#define MAX_ROUTING_ENTRIES (4)
-
-
 typedef struct {
 	int steps;
 	ID intermediate_node;
@@ -25,31 +22,21 @@ typedef struct destination_approximator_struct {
 } DestinationApproximator;
 
 
-typedef struct {
+typedef struct router_struct {
 	DestinationApproximator *destination_list;
 	int approximators;
 	ID node_id;
 	uint32_t discovery_seq;
 } Router;
 
-// public
-Router *create_router(ID for_node);
-ID router_query_intermediate(Router *router, ID destination_node);
-void router_update(Router *router, ID origin_node, ID destination_node, ID from_node, int steps);
-void router_bad_intermediate(Router *router, ID intermediate_node);
-void router_link_node(Router *router, ID node);
-void router_unlink_node(Router *router, ID bad_node);
-void router_answer_rquery(Router *router, NodeEntry *node_obj, int count, char *buffer, size_t buffer_size);
-void router_parse_rquery(Router *router, ID from_node, char *buffer);
-
 
 // hidden
 static DestinationApproximator *create_destination_approximator(Router *router, ID destination_node);
 static DestinationApproximator *get_destination_approximator(Router *router, ID destination_node);
-static bool update_approximation_entry(DestinationApproximator *approximator, ID intermediate_node, int steps);
+static bool update_approximation_entry(Router *router, DestinationApproximator *approximator, ID intermediate_node, int steps);
 static bool remove_approximation_entry(DestinationApproximator *approximator, ID intermediate_node);
 static IntermediateStepInfo *choose_approximation_route(DestinationApproximator *approximator);
-static void router_incorporate_rquery(Router *router, ID from_node, ID destination_node, int steps)
+static void router_incorporate_rquery(Router *router, ID from_node, ID destination_node, int steps);
 
 
 Router *create_router(ID for_node) {
@@ -102,14 +89,14 @@ static DestinationApproximator *get_destination_approximator(Router *router, ID 
 }
 
 
-static bool update_approximation_entry(DestinationApproximator *approximator, ID intermediate_node, int steps) {
+static bool update_approximation_entry(Router *router, DestinationApproximator *approximator, ID intermediate_node, int steps) {
     int free_index = -1;
     int max_steps_index = -1;
     int max_steps = -1;
 
     // update counter
     router->discovery_seq++;
-	approx->last_updated_seq = router->discovery_seq;
+	approximator->last_updated_seq = router->discovery_seq;
 
     for (int i = 0; i < MAX_ROUTING_ENTRIES; i++) {
         IntermediateStepInfo *info = &approximator->best_routing_info[i];
@@ -259,7 +246,7 @@ void router_answer_rquery(Router *router, NodeEntry *node_obj, int count, char *
 	DestinationApproximator *approx = router->destination_list;
 	for (; approx != NULL; approx = approx->next) {
 	    if (inter_steps_found >= count) break;
-	    if (approx->destination_node == node_obj->id) continue; // skip self
+	    if (approx->destination_node == node_obj->address.i_addr) continue; // skip self
 
 	    if (approx->last_updated_seq > node_last_updated) {
 	        // NEW info for this requester
@@ -291,34 +278,34 @@ void router_answer_rquery(Router *router, NodeEntry *node_obj, int count, char *
 	}
 	node_obj->last_rquery = router->discovery_seq;
 
-	if (buf_size == 0) return; // nothing we can do
+	if (buffer_size == 0) return; // nothing we can do
 
     int offset = 0;
 
     // 1) write the count: count
-    int n = snprintf(buffer + offset, buf_size - offset, "%d", inter_steps_found);
-    if (n < 0 || (size_t)n >= buf_size - offset) {
+    int n = snprintf(buffer + offset, buffer_size - offset, "%d", inter_steps_found);
+    if (n < 0 || (size_t)n >= buffer_size - offset) {
         // truncated or error; ensure null-termination and bail
-        buffer[buf_size - 1] = '\0';
+        buffer[buffer_size - 1] = '\0';
         node_obj->last_rquery = router->discovery_seq;
         return;
     }
     offset += n;
 
     for (int i = 0; i < inter_steps_found; i++) {
-        if (offset >= (int)buf_size - 1) {
+        if (offset >= (int)buffer_size - 1) {
             break; // no more space
         }
 
         n = snprintf(buffer + offset,
-                     buf_size - offset,
+                     buffer_size - offset,
                      "|%u:%d",
-                     info_to_return[i].destination_node,
+                     (unsigned) info_to_return[i].destination_node,
                      info_to_return[i].steps);
 
-        if (n < 0 || (size_t)n >= buf_size - offset) {
+        if (n < 0 || (size_t)n >= buffer_size - offset) {
             // truncated or error; stop appending
-            buffer[buf_size - 1] = '\0';
+            buffer[buffer_size - 1] = '\0';
             break;
         }
 
@@ -346,7 +333,7 @@ ID router_query_intermediate(Router *router, ID destination_node) {
 
 static void router_incorporate_rquery(Router *router, ID from_node, ID destination_node, int steps) {
 	DestinationApproximator *dest_approx = get_destination_approximator(router, destination_node);
-	update_approximation_entry(dest_approx, from_node, steps + 1);
+	update_approximation_entry(router, dest_approx, from_node, steps + 1);
 }
 
 void router_update(Router *router, ID origin_node, ID destination_node, ID from_node, int steps) {
@@ -354,10 +341,8 @@ void router_update(Router *router, ID origin_node, ID destination_node, ID from_
 	DestinationApproximator *origin_approx = get_destination_approximator(router, origin_node);
 
 	// we can get to the from node in one step
-	update_approximation_entry(from_approx, from_node, 1);
-	update_approximation_entry(origin_approx, from_node, steps);
-
-	return true;
+	update_approximation_entry(router, from_approx, from_node, 1);
+	update_approximation_entry(router, origin_approx, from_node, steps);
 }
 
 void router_bad_intermediate(Router *router, ID intermediate_node) {

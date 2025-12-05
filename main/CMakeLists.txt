@@ -6,6 +6,7 @@ idf_component_register(
         "src/hash_table.c"
         "src/node_globals.c"
         "src/node_table.c"
+        "src/routing.c"
         "src/data_table.c"
         "src/lora_uart.c"
         "src/web_server.c"
