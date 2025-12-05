@@ -2,6 +2,9 @@
 
 #include "node_table.h"
 #include "routing.h"
+#include <time.h>
+
+#define RQUERY_INTERVAL_MS (120000)
 
 // static void parse_new_nodes(const char *content);
 // static int gather_nodes(char *out_buffer);
@@ -37,14 +40,14 @@ void handle_maintenance_msg(ID msg_id) {
         return;
     }
 
+    NodeEntry *this_node = get_node_ptr(g_address.i_addr);
     // buffer for message to send back
     char buffer[240];
     int len = 0;
 
     // PING
 
-    if (strncmp(respond_to_msg->content, "ping", 4) == 0) {
-        NodeEntry *this_node = get_node_ptr(g_address.i_addr);
+    if (strncmp(respond_to_msg->content, "ping", 5) == 0) {
         // get node info
         // return back name of node
         len = sprintf(buffer,"%s",(this_node->name[0] != '\0') ? this_node->name : "None");
@@ -53,7 +56,7 @@ void handle_maintenance_msg(ID msg_id) {
  
     } else if (respond_to_msg->ack_for) {
         DataEntry *acked_msg = msg_find(respond_to_msg->ack_for);
-        if (strncmp(acked_msg->content, "ping", 4) == 0) {
+        if (strncmp(acked_msg->content, "ping", 5) == 0) {
             update_name(respond_to_msg->origin_node, respond_to_msg->content);
         }
     }
@@ -63,7 +66,6 @@ void handle_maintenance_msg(ID msg_id) {
     if (strncmp(respond_to_msg->content, "gbcast", 7) == 0) {
         // we need to create an ack to (origin, targeting src)
         // we also need to send along the msg
-        NodeEntry *this_node = get_node_ptr(g_address.i_addr);
 
         // the ack should just have the nodes name
         for (; this_node->name[len]; len++) {
@@ -87,22 +89,24 @@ void handle_maintenance_msg(ID msg_id) {
 
     // RQUERY
 
-    if (strncmp(respond_to_msg->content, "rquery", 6) == 0) { 
+    if (strncmp(respond_to_msg->content, "rquery", 7) == 0) { 
+        NodeEntry *from_node = get_node_ptr(respond_to_msg->src_node);
+        // this nodes router and the node obj of the src
+        len = router_answer_rquery(this_node->router, from_node, 5, buffer, 240);
         // provide router details
 
     } else if (respond_to_msg->ack_for) {
         // if msg is resposne to a discovery node
         DataEntry *acked_msg = msg_find(respond_to_msg->ack_for);
         // if it is the discovery message then deal with it
-        if (strncmp(acked_msg->content, "rquery", 6) == 0) {
-            // data in resp to rquery
+        if (strncmp(acked_msg->content, "rquery", 7) == 0) {
+            router_parse_rquery(this_node->router, respond_to_msg->src_node, respond_to_msg->content);
         }
-
     }
 
     // UNLINK
 
-    if (strncmp(respond_to_msg->content, "unlink", 6) == 0) { 
+    if (strncmp(respond_to_msg->content, "unlink", 7) == 0) { 
         // do whats needed to unlink
         // this should only be allowed if they are direct neighbors (steps = 1)
         if (respond_to_msg->steps != 1) {
@@ -110,7 +114,6 @@ void handle_maintenance_msg(ID msg_id) {
             buffer[len++] = 'n';
         } else {
             NodeEntry *linked_node = get_node_ptr(respond_to_msg->origin_node);
-            NodeEntry *this_node = get_node_ptr(g_address.i_addr);
             // yes we should cut the link
             // tell router we are unlinking
             router_unlink_node(this_node->router, respond_to_msg->origin_node);
@@ -124,11 +127,10 @@ void handle_maintenance_msg(ID msg_id) {
         // if msg is resposne to a discovery node
         DataEntry *acked_msg = msg_find(respond_to_msg->ack_for);
         // if it is the discovery message then deal with it
-        if (strncmp(acked_msg->content, "unlink", 6) == 0) {
+        if (strncmp(acked_msg->content, "unlink", 7) == 0) {
             if (respond_to_msg->content[0] == 'y') {
                 // other node unlinked so we can unlink
                 NodeEntry *linked_node = get_node_ptr(respond_to_msg->origin_node);
-                NodeEntry *this_node = get_node_ptr(g_address.i_addr);
                 // tell router we are unlinking
                 router_unlink_node(this_node->router, respond_to_msg->origin_node);
                 // tell node the same
@@ -139,11 +141,10 @@ void handle_maintenance_msg(ID msg_id) {
 
     // LINK
 
-    if (strncmp(respond_to_msg->content, "link", 4) == 0) { 
+    if (strncmp(respond_to_msg->content, "link", 5) == 0) { 
         // for link i should relink no questions asked
 
         NodeEntry *unlinked_node = get_node_ptr(respond_to_msg->origin_node);
-        NodeEntry *this_node = get_node_ptr(g_address.i_addr);
         // yes we should establish the link
         // tell router we are linking
         router_link_node(this_node->router, respond_to_msg->origin_node);
@@ -220,3 +221,17 @@ void resolve_system_command(char *cmd_buffer) {
         queue_send(unlink_msg, node_id);
     }
 }
+
+
+void rquery_task(void *arg) {
+    for (;;) {
+        vTaskDelay(pdMS_TO_TICKS(RQUERY_INTERVAL_MS));
+        ID msg = create_data_object(
+            NO_ID, MAINTENANCE, "rquery",
+            g_address.i_addr, 0, g_address.i_addr,
+            0, 0, 0, NO_ID
+        );
+        queue_send(msg, 0);
+    }
+}
+

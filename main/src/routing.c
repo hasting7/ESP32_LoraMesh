@@ -230,7 +230,7 @@ void router_parse_rquery(Router *router, ID from_node, char *buffer) {
 }
 
 
-void router_answer_rquery(Router *router, NodeEntry *node_obj, int count, char *buffer, size_t buffer_size) {
+int router_answer_rquery(Router *router, NodeEntry *node_obj, int count, char *buffer, size_t buffer_size) {
 	uint32_t node_last_updated = node_obj->last_rquery;
 
 	typedef struct {
@@ -279,7 +279,7 @@ void router_answer_rquery(Router *router, NodeEntry *node_obj, int count, char *
 	}
 	node_obj->last_rquery = router->discovery_seq;
 
-	if (buffer_size == 0) return; // nothing we can do
+	if (buffer_size == 0) return 0; // nothing we can do
 
     int offset = 0;
 
@@ -289,7 +289,7 @@ void router_answer_rquery(Router *router, NodeEntry *node_obj, int count, char *
         // truncated or error; ensure null-termination and bail
         buffer[buffer_size - 1] = '\0';
         node_obj->last_rquery = router->discovery_seq;
-        return;
+        return 0;
     }
     offset += n;
 
@@ -314,6 +314,7 @@ void router_answer_rquery(Router *router, NodeEntry *node_obj, int count, char *
     }
 
     buffer[offset] = '\0';
+    return offset;
 }
 
 

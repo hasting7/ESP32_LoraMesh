@@ -5,6 +5,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+
 #include "data_table.h"
 #include "lora_uart.h"
 #include "mesh_config.h"
@@ -12,6 +13,7 @@
 #include "node_table.h"
 #include "web_server.h"
 #include "esp_log.h"
+#include "maintenance.h"
 
 static const char *TAG = "Main";
 
@@ -41,8 +43,9 @@ void app_main(void)
 
     // create message sending task
 
-    xTaskCreate(message_sending_task, "message sender", 4096, NULL, 5, NULL);
-    xTaskCreate(node_status_task, "node status checker", 4096, NULL, 5, NULL);
+    xTaskCreate(message_sending_task, "message sender",      4096, NULL, 5, NULL);
+    xTaskCreate(node_status_task,     "node status checker", 4096, NULL, 5, NULL);
+    xTaskCreate(rquery_task,          "rquery_task",         4096, NULL, 5, NULL);
 
     // find neighbors
  

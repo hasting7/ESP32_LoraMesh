@@ -16,7 +16,7 @@ void router_update(Router *router, ID origin_node, ID destination_node, ID from_
 void router_bad_intermediate(Router *router, ID intermediate_node);
 void router_link_node(Router *router, ID node);
 void router_unlink_node(Router *router, ID bad_node);
-void router_answer_rquery(Router *router, NodeEntry *node_obj, int count, char *buffer, size_t buffer_size);
+int router_answer_rquery(Router *router, NodeEntry *node_obj, int count, char *buffer, size_t buffer_size);
 void router_parse_rquery(Router *router, ID from_node, char *buffer);
 
 #endif
