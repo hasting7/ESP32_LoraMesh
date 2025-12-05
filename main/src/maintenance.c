@@ -187,7 +187,10 @@ void resolve_system_command(char *cmd_buffer) {
         strlcpy(node->name, name, 32);
         node->name[len] = '\0';
     } else if (sscanf(cmd_buffer, "SYS+LINK=%hu",&node_id)) {
-        if (node_id == g_address.i_addr) return;
+        if (node_id == g_address.i_addr) {
+            printf("[LINK] Cannot link to self\n");
+            return;
+        }
         NodeEntry *unlinked_node = get_node_ptr(node_id);
         if (!unlinked_node) {
             printf("[LINK] Node with id = %hu not found\n",node_id);
